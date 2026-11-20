@@ -1,0 +1,11 @@
+node_modules/
+dist/
+# generated from src/styles by scripts/gen-ltr.mjs on every dev/build
+src/styles-ltr/
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+Thumbs.db
+*.whl
