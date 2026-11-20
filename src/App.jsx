@@ -1,5 +1,6 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import AppLayout from './components/AppLayout.jsx';
+import { RequireAdmin } from './auth.jsx';
 import Placeholder from './components/Placeholder.jsx';
 import Login from './pages/Login.jsx';
 import UserLogin from './pages/UserLogin.jsx';
@@ -45,7 +46,7 @@ export default function App() {
       <Route path="/cyber-compliance" element={<Placeholder standalone />} />
 
       {/* Admin system */}
-      <Route element={<AppLayout />}>
+      <Route element={<RequireAdmin><AppLayout /></RequireAdmin>}>
         <Route path="/" element={<Dashboard />} />
         <Route path="/users" element={<Users />} />
         <Route path="/users/new" element={<AddUser />} />

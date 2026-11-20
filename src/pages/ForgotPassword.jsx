@@ -2,6 +2,9 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AuthLayout, { AuthHero, Field, SecureFooterNote } from '../components/AuthLayout.jsx';
 import { ShieldCheckIcon } from '../components/Icons.jsx';
+import { api, errorText } from '../lib/api.js';
+
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
 // "استعادة كلمة المرور" — two states in the design: without and with the security note.
 export default function ForgotPassword() {
@@ -9,11 +12,25 @@ export default function ForgotPassword() {
   const [value, setValue] = useState('');
   const [sent, setSent] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const bad = submitted && !EMAIL.test(value.trim());
 
-  function onSubmit(e) {
+  // POST /api/forgot-password always answers the same, so nobody can tell which emails exist
+  async function onSubmit(e) {
     e.preventDefault();
     setSubmitted(true);
-    if (value.trim()) setSent(true);
+    setError('');
+    if (!EMAIL.test(value.trim())) return;
+    setBusy(true);
+    try {
+      await api('/forgot-password', { method: 'POST', body: { email: value.trim() }, auth: false });
+      setSent(true);
+    } catch (err) {
+      setError(errorText(err));
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -23,19 +40,23 @@ export default function ForgotPassword() {
         <AuthHero
           pill="نظام إدارة المشتريات والعقود الذكي"
           title="استعادة كلمة المرور"
-          subtitle="أدخل البريد الإلكتروني أو اسم المستخدم المسجل في المنظومة، وسنرسل لك رابطاً وتعليمات آمنة لإعادة تعيين كلمة المرور."
+          subtitle="أدخل البريد الإلكتروني المسجل في المنظومة، وسنرسل لك رابطاً وتعليمات آمنة لإعادة تعيين كلمة المرور."
           wide
         />
         <form className="auth-card" onSubmit={onSubmit} noValidate>
+          {error && <p className="auth-alert" role="alert">{error}</p>}
           <div className="auth-fields">
             <Field
               name="identifier"
-              label="البريد الإلكتروني أو اسم المستخدم"
+              label="البريد الإلكتروني"
               required
-              placeholder="ادخل إسم المستخدم"
+              type="email"
+              autoComplete="email"
+              placeholder="name@example.com"
               value={value}
               onChange={setValue}
-              invalid={submitted && !value.trim()}
+              invalid={bad}
+              error={bad ? 'يرجى إدخال بريد إلكتروني صحيح' : ''}
             />
           </div>
           {sent && (
@@ -46,8 +67,8 @@ export default function ForgotPassword() {
               </p>
             </div>
           )}
-          <button type="submit" className="btn-primary btn-primary--lg">
-            ارسال رابط الإستعادة
+          <button type="submit" className="btn-primary btn-primary--lg" disabled={busy}>
+            {busy ? 'جارٍ الإرسال...' : 'ارسال رابط الإستعادة'}
           </button>
           <button type="button" className="btn-outline btn-outline--lg" onClick={() => navigate('/login')}>
             العودة لتسجيل الدخول

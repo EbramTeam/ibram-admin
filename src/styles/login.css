@@ -399,3 +399,24 @@
 .auth-footer__links a:hover {
   text-decoration: underline;
 }
+
+/* API messages on the sign-in screens */
+.auth-alert {
+  margin: 0 0 16px;
+  padding: 12px 16px;
+  border-radius: 14px;
+  background: #fff1f1;
+  color: #c62020;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.6;
+}
+.field__err {
+  padding-inline: 20px;
+  font-size: 13px;
+  color: #d12020;
+}
+.btn-primary:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}

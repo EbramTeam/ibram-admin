@@ -73,7 +73,7 @@ export function AuthHero({ pill, title, subtitle, wide }) {
   );
 }
 
-export function Field({ label, required, tight, invalid, type = 'text', value, onChange, placeholder, name }) {
+export function Field({ label, required, tight, invalid, type = 'text', value, onChange, placeholder, name, autoComplete = 'off', error }) {
   return (
     <div className="field">
       <label className="field__label" htmlFor={name}>
@@ -89,8 +89,11 @@ export function Field({ label, required, tight, invalid, type = 'text', value, o
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        autoComplete="off"
+        autoComplete={autoComplete}
+        aria-invalid={invalid || undefined}
+        aria-describedby={error ? name + '-err' : undefined}
       />
+      {error && <small className="field__err" id={name + '-err'} role="alert">{error}</small>}
     </div>
   );
 }

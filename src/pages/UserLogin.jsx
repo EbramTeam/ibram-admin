@@ -1,20 +1,10 @@
-import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
+import useLoginForm from './useLoginForm.js';
 import AuthLayout, { AuthHero, Field, Check, SecureFooterNote } from '../components/AuthLayout.jsx';
 
 // Employee login ("تسجيل الدخول" — procurement & smart contracts system)
 export default function UserLogin() {
-  const navigate = useNavigate();
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [remember, setRemember] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
-
-  function onSubmit(e) {
-    e.preventDefault();
-    setSubmitted(true);
-    if (username.trim() && password.trim()) navigate('/');
-  }
+  const f = useLoginForm();
 
   return (
     <AuthLayout>
@@ -24,38 +14,43 @@ export default function UserLogin() {
           title="تسجيل الدخول"
           subtitle="سجّل الدخول للوصول إلى نظام إدارة المشتريات"
         />
-        <form className="auth-card" onSubmit={onSubmit} noValidate>
+        <form className="auth-card" onSubmit={f.onSubmit} noValidate>
+          {f.error && <p className="auth-alert" role="alert">{f.error}</p>}
           <div className="auth-fields auth-fields--login">
             <Field
-              name="username"
-              label="إسم المستخدم"
+              name="email"
+              label="البريد الإلكتروني"
               required
-              placeholder="ادخل إسم المستخدم"
-              value={username}
-              onChange={setUsername}
-              invalid={submitted && !username.trim()}
+              type="email"
+              autoComplete="username"
+              placeholder="name@example.com"
+              value={f.email}
+              onChange={f.setEmail}
+              invalid={f.emailBad}
+              error={f.emailBad ? 'يرجى إدخال بريد إلكتروني صحيح' : ''}
             />
             <Field
               name="password"
               label="كلمة المرور"
               required
               type="password"
+              autoComplete="current-password"
               placeholder="ادخل كلمة المرور"
-              value={password}
-              onChange={setPassword}
-              invalid={submitted && !password.trim()}
+              value={f.password}
+              onChange={f.setPassword}
+              invalid={f.passBad}
             />
           </div>
           <div className="auth-options">
-            <Check checked={remember} onChange={setRemember}>
+            <Check checked={f.remember} onChange={f.setRemember}>
               تذكرني
             </Check>
             <Link to="/forgot-password" className="auth-link">
               هل نسيت كلمة المرور؟
             </Link>
           </div>
-          <button type="submit" className="btn-primary btn-primary--lg">
-            تسجيل الدخول
+          <button type="submit" className="btn-primary btn-primary--lg" disabled={f.busy}>
+            {f.busy ? 'جارٍ تسجيل الدخول...' : 'تسجيل الدخول'}
           </button>
         </form>
         <SecureFooterNote />

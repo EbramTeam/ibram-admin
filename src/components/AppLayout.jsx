@@ -1,5 +1,6 @@
 import LangButton from './LangButton.jsx';
 import { useMaster } from '../masterStore.jsx';
+import { useAuth } from '../auth.jsx';
 import { useEffect, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { NAV_ITEMS } from '../data.js';
@@ -96,6 +97,7 @@ function Bell() {
 function ProfileMenu() {
   const { open, setOpen, ref } = useDropdown();
   const navigate = useNavigate();
+  const { logout } = useAuth();
   return (
     <div className="pmenu" ref={ref}>
       <button type="button" className="sidebar__chev" aria-label="قائمة الحساب" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
@@ -112,8 +114,16 @@ function ProfileMenu() {
             سجل التدقيق
           </button>
           <hr />
-          {/* TODO: call POST /api/logout and clear the token when connected to the backend */}
-          <button type="button" role="menuitem" className="is-danger" onClick={() => { setOpen(false); navigate('/login'); }}>
+          <button
+            type="button"
+            role="menuitem"
+            className="is-danger"
+            onClick={async () => {
+              setOpen(false);
+              await logout(); // POST /api/logout, then the token is removed
+              navigate('/login', { replace: true });
+            }}
+          >
             <LogoutIcon size={18} />
             تسجيل الخروج
           </button>
@@ -177,6 +187,7 @@ function crumbsFor(pathname, M) {
 
 function Sidebar({ open, onClose }) {
   const { pathname } = useLocation();
+  const { user } = useAuth();
   return (
     <aside className={'sidebar' + (open ? ' is-open' : '')} onClick={(e) => e.target.closest('a') && onClose()}>
       <div className="sidebar__scroll">
@@ -212,8 +223,8 @@ function Sidebar({ open, onClose }) {
         <div className="sidebar__profile">
           <UserFilledIcon size={28} className="sidebar__avatar" />
           <div>
-            <strong>د. محمد كسبة</strong>
-            <small>مدير النظام العام</small>
+            <strong>{user?.name || 'د. محمد كسبة'}</strong>
+            <small>{user?.roles?.map((r) => r.label || r.name).join('، ') || 'مدير النظام العام'}</small>
           </div>
           <ProfileMenu />
         </div>

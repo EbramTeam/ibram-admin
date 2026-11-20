@@ -7,6 +7,7 @@ import '@fontsource/montserrat/600.css';
 import '@fontsource/montserrat/700.css';
 import './styles/fonts.css';
 import App from './App.jsx';
+import { AuthProvider } from './auth.jsx';
 import { setLanguage } from './i18n/translate.js';
 
 let savedLang = 'ar';
@@ -29,6 +30,8 @@ setLanguage(savedLang); // قبل الرسم: يطبّق ملف التنسيق �
 
 createRoot(document.getElementById('root')).render(
   <BrowserRouter>
-    <App />
+    <AuthProvider>
+      <App />
+    </AuthProvider>
   </BrowserRouter>
 );
