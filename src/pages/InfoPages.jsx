@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import AuthLayout, { AuthHero, Field, SecureFooterNote } from '../components/AuthLayout.jsx';
+import { SiteHeader, SiteFooter } from '../components/SiteChrome.jsx';
 import { api, errorText, ApiError } from '../lib/api.js';
 import {
   ShieldLockIcon, ShieldCheckIcon, KeyLockIcon, UserCheckIcon, LogsIcon, FingerprintIcon,
@@ -163,6 +164,7 @@ export function Support() {
 
 const LEGAL = [
   {
+    id: 'terms',
     title: 'شروط الاستخدام',
     intro: 'مرحبًا بك في منصة إبرام لإدارة المشتريات. باستخدامك للمنصة، فإنك توافق على الالتزام بشروط الاستخدام والأحكام الموضحة أدناه. يرجى قراءتها بعناية قبل استخدام خدماتنا.',
     parts: [
@@ -173,6 +175,7 @@ const LEGAL = [
     ],
   },
   {
+    id: 'privacy',
     title: 'سياسة الخصوصية',
     intro: 'تولي منصة إبرام أهمية كبيرة لخصوصية المستخدمين وسرية البيانات. توضح هذه السياسة أنواع المعلومات التي قد نجمعها، وكيفية استخدامها وحمايتها عند استخدام المنصة وخدماتها.',
     parts: [
@@ -191,6 +194,7 @@ const LEGAL = [
     ],
   },
   {
+    id: 'copyright',
     title: 'حقوق النشر',
     lines: [
       'جميع الحقوق المتعلقة بمنصة إبرام ومحتوياتها، بما في ذلك النصوص والتصاميم والشعارات والأيقونات والواجهات والرسومات والمواد البرمجية، محفوظة للمنصة أو لأصحاب الحقوق المعنيين.',
@@ -203,35 +207,36 @@ const LEGAL = [
 
 export function Privacy() {
   return (
-    <AuthLayout>
-      <article className="legal">
-        {LEGAL.map((doc) => (
-          <section key={doc.title} className="legal__doc">
-            <h1>{doc.title}</h1>
-            {doc.intro && <p>{doc.intro}</p>}
-            {doc.parts?.map(([title, text, list]) => (
-              <div key={title} className="legal__part">
-                <h2>{title}</h2>
-                <p>{text}</p>
-                {list && (
-                  <ul>
-                    {list.map((li) => (
-                      <li key={li}>{li}</li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            ))}
-            {doc.lines?.map((line) => (
-              <p key={line} className="legal__line">{line}</p>
-            ))}
-          </section>
-        ))}
-        <div className="infopage__back">
-          <Link to="/login" className="btn-outline btn-outline--lg">العودة لتسجيل الدخول</Link>
-        </div>
-      </article>
-    </AuthLayout>
+    <div className="site-page">
+      <SiteHeader />
+      <main className="site-main">
+        <article className="legal">
+          {LEGAL.map((doc) => (
+            <section key={doc.title} id={doc.id} className="legal__doc">
+              <h1>{doc.title}</h1>
+              {doc.intro && <p>{doc.intro}</p>}
+              {doc.parts?.map(([title, text, list]) => (
+                <div key={title} className="legal__part">
+                  <h2>{title}</h2>
+                  <p>{text}</p>
+                  {list && (
+                    <ul>
+                      {list.map((li) => (
+                        <li key={li}>{li}</li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              ))}
+              {doc.lines?.map((line) => (
+                <p key={line} className="legal__line">{line}</p>
+              ))}
+            </section>
+          ))}
+        </article>
+      </main>
+      <SiteFooter />
+    </div>
   );
 }
 

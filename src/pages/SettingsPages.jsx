@@ -1,4 +1,10 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { api } from '../lib/api.js';
+import { dateTime } from '../lib/users.js';
+import { useMaster, fmt } from '../masterStore.jsx';
+import { DatabaseIcon, OrgChartIcon } from '../components/Icons.jsx';
+import { CubeIcon } from '../components/MIcons.jsx';
+import { eventLabel, subjectLabel } from '../auditData.js';
 import { useNavigate } from 'react-router-dom';
 import { settings, NOTIF_DEFAULT } from '../settingsStore.js';
 import { setLanguage } from '../i18n/translate.js';
@@ -9,46 +15,105 @@ import { WorkflowIcon, ArrowLeftLongIcon, CloudUploadIcon, TranslateIcon, ClockI
 import { ChevronDownIcon } from '../components/Icons.jsx';
 
 // ---------- الإعدادات (الرئيسية) ----------
-function SCard({ off, tag, icon, title, text, rows, link, linkTo, side, cls = '' }) {
+// official board: organization banner, real figures, then the settings sections as a list
+const SECTIONS = [
+  { to: '/settings/general', icon: <SettingsIcon size={22} />, title: 'الإعدادات العامة', text: 'اسم الجهة وشعارها والعملة ولغة الواجهة.' },
+  { to: '/settings/procurement', icon: <WorkflowIcon size={22} />, title: 'المشتريات وسير العمل', text: 'مراحل الطلبات وسلاسل الاعتماد والصلاحيات المالية.' },
+  { to: '/settings/notifications', icon: <BellIcon size={22} />, title: 'الإشعارات', text: 'التنبيهات التي تصل للمستخدمين داخل النظام.' },
+  { to: '/roles', icon: <ShieldCheckIcon size={22} />, title: 'الأدوار والصلاحيات', text: 'من يستطيع ماذا داخل النظام، وإنشاء الأدوار المخصصة.' },
+  { to: '/master-data', icon: <DatabaseIcon size={22} />, title: 'البيانات الأساسية', text: 'الأقسام والتصنيفات ووحدات القياس والأصناف.' },
+];
+
+function Stat({ icon, label, value, note, to }) {
   const nav = useNavigate();
   return (
-    <section className={'scard ' + cls + (off ? ' is-off' : '')}>
-      <div className="scard__top"><span className="scard__icon">{icon}</span><span className="scard__tag">{tag}<i /></span></div>
-      <h2>{title}</h2>
-      <p>{text}</p>
-      <div className="scard__rows">
-        {rows.map(([k, v, g]) => <div key={k}><span>{k}</span><b className={g ? 'is-g' : ''}>{v}</b></div>)}
-      </div>
-      <footer>
-        {off ? <span className="scard__link is-off"><BanIcon size={16} />{link}</span> : <button type="button" className="scard__link" onClick={() => nav(linkTo)}>{link}<ArrowLeftLongIcon size={16} /></button>}
-        <small>{side}</small>
-      </footer>
-    </section>
+    <button type="button" className="sstat" onClick={() => nav(to)}>
+      <span className="sstat__icon">{icon}</span>
+      <span className="sstat__label">{label}</span>
+      <b className="sstat__value">{value ?? <i className="shcard__wait" />}</b>
+      <small>{note}</small>
+    </button>
   );
 }
 
 export function SettingsHub() {
   const nav = useNavigate();
-  const [prod, setProd] = useState(settings.prod);
+  const { departments, categories, units, items, loaded } = useMaster();
+  const [org, setOrg] = useState(null);
+  const [roles, setRoles] = useState(null);
+  const [unread, setUnread] = useState(null);
+  const [last, setLast] = useState(undefined);
+
+  useEffect(() => {
+    api('/organization').then(setOrg).catch(() => setOrg({}));
+    api('/roles').then((r) => setRoles(r.data)).catch(() => setRoles([]));
+    api('/notifications').then((r) => setUnread(r.unread_count)).catch(() => setUnread(0));
+    // logins and logouts aren't changes: show the latest admin action
+    api('/audit-logs?per_page=30').then((r) => setLast(r.data.find((x) => !x.event.startsWith('auth.')) || null)).catch(() => setLast(null));
+  }, []);
+
+  const lang = document.documentElement.lang === 'en' ? 'English' : 'العربية';
+  const activeRoles = roles && roles.filter((r) => r.is_active !== false).length;
+  const customRoles = roles && roles.filter((r) => r.is_system === false).length;
+  const subDepts = departments.filter((d) => d.level === 'sub').length;
+
   return (
-    <div className="shub">
-      <PageHead title="الإعدادات" sub="إدارة إعدادات النظام والخيارات التي تتحكم في طريقة عمل المنصة، مسارات الاعتمادات، وقنوات الاتصال السيادية." tag={<span className="stag">إصدار النظام السيادي 2.4<i /></span>} inline>
-        <label className="sprod">
-          <span className="sprod__icon"><ShieldCheckIcon size={20} /></span>
-          <div><strong>بيئة الإنتاج السيادي</strong><small>صلاحيات مدير النظام الكاملة (SuperAdmin)</small></div>
-          <Cbx checked={prod} onChange={(v) => { settings.prod = v; setProd(v); }} label="بيئة الإنتاج السيادي" size={24} />
-        </label>
-      </PageHead>
-      <div className="shub__grid">
-        <SCard tag="نشط ومعتمد" icon={<SettingsIcon size={26} />} title="الإعدادات العامة" text="إدارة المعلومات والتفضيلات العامة للجهة والنظام، وتثبيت المحددات الهيكلية للمنظمة." rows={[['هوية وسجل الجهة:', 'جامعة الأزهر'], ['العملة المعيارية:', 'ريال سعودي (SAR)'], ['التقويم والمنطقة:', 'أم القرى (UTC+03:00)']]} link="عرض الإعدادات العامة" linkTo="/settings/general" side="4 أقسام فرعية" />
-        <SCard tag="مسارات مفعلة" icon={<WorkflowIcon size={26} />} title="المشتريات وسير العمل" text="مراجعة إعدادات المشتريات ومراحل الطلبات وسلاسل الاعتماد وتوزيع الصلاحيات المالية." rows={[['قواعد الشراء وسقوفها:', '3 مستويات تسعيرية'], ['سلاسل الموافقات:', 'مباشر / لجنة تدقيق'], ['اعتماد أوامر الصرف:', 'الزامي للمفوضين', true]]} link="إدارة سير المشتريات والعمل" linkTo="/settings/procurement" side="تبويبين رئيسيين" />
-        <SCard tag="قنوات الاتصال جاهزة" icon={<BellIcon size={26} />} title="الإشعارات" text="إدارة تفضيلات الإشعارات المرتبطة بإجراءات النظام، تنبيهات الترسية وسجلات التدقيق الفوري." rows={[['الإشعارات البريدية:', 'خادم SMTP المؤسسي'], ['تنبيهات أوامر الشراء:', 'إشعار فوري عند التحديث'], ['تنبيهات التدقيق الرقابي:', 'مفعلة للمراقبة المالية']]} link="تخصيص قنوات وتنبيهات النظام" linkTo="/settings/notifications" side="3 قنوات نشطة" />
-        <SCard off cls="scard--soon" tag="قريباً - غير متاح في الإصدار الحالي (MVP)" icon={<ShieldIcon size={26} />} title="النظام والأمان" text="إعدادات الأمان المتقدمة وسياسات الوصول الموحد والتكامل التقني والربط الشبكي الحكومي." rows={[['المصادقة الثنائية وسياسة IAM:', 'مجدول للتفعيل المستقبلي'], ['الربط مع واجهات (API) السيادي:', 'قيد التطوير والتكامل'], ['التوافق المؤسسي الوطني:', 'بانتظار الاعتماد التنظيمي']]} link="قيد التطوير والاعتماد التنظيمي" side="مرحلة قادمة" />
+    <div className="shub shub--board">
+      <PageHead title="الإعدادات" sub="لوحة إعدادات الجهة والنظام: نظرة عامة على البيانات المعتمدة، والوصول إلى أقسام الضبط." />
+
+      <section className="shub2__org">
+        <span className="shub2__seal"><BuildingIcon size={28} /></span>
+        <div className="shub2__orgname">
+          <small>الجهة المسجلة</small>
+          <strong>{org ? org.name || '—' : '...'}</strong>
+        </div>
+        <dl className="shub2__orgmeta">
+          <div><dt>رمز الجهة</dt><dd dir="ltr">{org?.code || '—'}</dd></div>
+          <div><dt>العملة</dt><dd dir="ltr">{org?.currency || '—'}</dd></div>
+          <div><dt>الحالة</dt><dd>{org ? (org.is_active === false ? 'موقوفة' : <><i className="shub2__dot" />نشطة</>) : '—'}</dd></div>
+          <div><dt>لغة الواجهة</dt><dd>{lang}</dd></div>
+        </dl>
+      </section>
+
+      <div className="sstats">
+        <Stat icon={<OrgChartIcon size={20} />} label="الأقسام والإدارات" value={loaded ? fmt(departments.length) : null} note={loaded ? `منها ${fmt(subDepts)} قسم فرعي` : ''} to="/master-data/departments" />
+        <Stat icon={<CubeIcon size={20} />} label="الأصناف المسجلة" value={loaded ? fmt(items.length) : null} note={loaded ? `${fmt(categories.length)} تصنيف · ${fmt(units.length)} وحدة قياس` : ''} to="/master-data/items" />
+        <Stat icon={<ShieldCheckIcon size={20} />} label="الأدوار النشطة" value={roles ? fmt(activeRoles) : null} note={roles ? (customRoles ? `منها ${fmt(customRoles)} مخصص` : 'أدوار النظام الأساسية') : ''} to="/roles" />
+        <Stat icon={<BellIcon size={20} />} label="إشعارات غير مقروءة" value={unread === null ? null : fmt(unread)} note="الخاصة بحسابك" to="/" />
       </div>
-      <section className="scard2">
-        <span className="scard2__icon"><ShieldCheckIcon size={22} /></span>
-        <div><strong>حوكمة التعديلات المؤسسية</strong><p>يتم تسجيل كافة التغييرات على معايير النظام تلقائياً ضمن سجل الرقابة الموحد (Audit Trail) لضمان الشفافية والأمان السيادي.</p></div>
-        <button type="button" className="btn-primary" onClick={() => nav('/audit-log')}>عرض سجل التعديلات</button>
+
+      <section className="slist">
+        <header className="slist__head">
+          <h2>أقسام الضبط</h2>
+          <p>كل تعديل في هذه الأقسام يُسجَّل في سجل التدقيق باسم من نفّذه.</p>
+        </header>
+        <ul>
+          {SECTIONS.map((x, i) => (
+            <li key={x.to}>
+              <button type="button" onClick={() => nav(x.to)}>
+                <span className="slist__no">{String(i + 1).padStart(2, '0')}</span>
+                <span className="slist__icon">{x.icon}</span>
+                <span className="slist__text"><strong>{x.title}</strong><small>{x.text}</small></span>
+                <span className="slist__go"><ArrowLeftLongIcon size={18} /></span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      <section className="shub2__audit">
+        <span className="shub2__auditicon"><ClockHistoryIcon size={20} /></span>
+        <div>
+          <strong>آخر تعديل إداري</strong>
+          <p>
+            {last === undefined
+              ? 'جارٍ التحميل...'
+              : last
+                ? <>{eventLabel(last.event)}{last.subject_type ? ' - ' + subjectLabel(last) : ''} · {last.user?.name || 'النظام'} · {dateTime(last.created_at)}</>
+                : 'لا توجد تعديلات مسجلة بعد'}
+          </p>
+        </div>
+        <button type="button" className="btn-outline" onClick={() => nav('/audit-log')}>عرض سجل التدقيق</button>
       </section>
     </div>
   );
