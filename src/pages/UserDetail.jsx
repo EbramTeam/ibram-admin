@@ -8,6 +8,7 @@ import { api, ApiError, errorText } from '../lib/api.js';
 import { useAuth } from '../auth.jsx';
 import { fetchUser, fetchRoles, fetchDepartments, initials, statusOf, lastSeen, longDate, dateTime, actionError } from '../lib/users.js';
 import { STATUS } from '../data.js';
+import { eventLabel } from '../auditData.js';
 import {
   LockIcon,
   PencilIcon,
@@ -79,6 +80,109 @@ function scenarioOf(u) {
   if (!u.last_login_at) return 'new';
   if ((u.roles || []).length > 1) return 'multi';
   return 'lead';
+}
+
+// What each sandbox chip shows, from the real account and the audit log
+function ScenarioPanel({ kind, user, roleInfo }) {
+  const [rows, setRows] = useState(null);
+  const [error, setError] = useState('');
+  const needsLog = kind !== 'multi';
+
+  useEffect(() => {
+    if (!needsLog) return undefined;
+    let alive = true;
+    setRows(null);
+    setError('');
+    const q =
+      kind === 'lead'
+        ? `user_id=${user.id}&per_page=5`
+        : kind === 'new'
+          ? `subject_type=user&subject_id=${user.id}&event=user.created&per_page=1`
+          : `subject_type=user&subject_id=${user.id}&event=user.*activated&per_page=5`;
+    api('/audit-logs?' + q)
+      .then((res) => alive && setRows(res.data))
+      .catch((err) => alive && setError(errorText(err)));
+    return () => {
+      alive = false;
+    };
+  }, [kind, user.id, user.is_active, needsLog]);
+
+  const loading = needsLog && !rows && !error;
+  const who = (r) => r?.user?.name || 'النظام';
+
+  let body;
+  if (error) body = <p className="scen__muted">{error}</p>;
+  else if (loading) body = <p className="scen__muted">جارٍ التحميل...</p>;
+  else if (kind === 'new') {
+    const made = rows[0];
+    body = (
+      <ul className="scen__list">
+        <li><span>أُنشئ الحساب</span><b>{dateTime(user.created_at)}</b></li>
+        <li><span>أنشأه</span><b>{made ? who(made) : '—'}</b></li>
+        <li><span>أول تسجيل دخول</span><b>{user.last_login_at ? dateTime(user.last_login_at) : 'لم يسجّل الدخول بعد'}</b></li>
+        <li><span>كلمة المرور</span><b>{user.must_change_password ? 'مؤقتة، بانتظار التغيير' : 'غيّرها المستخدم'}</b></li>
+      </ul>
+    );
+  } else if (kind === 'lead') {
+    body = rows.length ? (
+      <ul className="scen__list">
+        {rows.map((r) => (
+          <li key={r.id}>
+            <span>{eventLabel(r.event)}</span>
+            <b>{dateTime(r.created_at)}</b>
+          </li>
+        ))}
+      </ul>
+    ) : (
+      <p className="scen__muted">لا يوجد نشاط مسجّل لهذا المستخدم بعد</p>
+    );
+  } else if (kind === 'disabled') {
+    body = (
+      <>
+        <p className={'scen__state ' + (user.is_active ? 'is-ok' : 'is-off')}>
+          {user.is_active ? 'الحساب نشط حالياً' : 'الحساب معطل حالياً ولا يستطيع تسجيل الدخول'}
+        </p>
+        {rows.length ? (
+          <ul className="scen__list">
+            {rows.map((r) => (
+              <li key={r.id}>
+                <span>{r.event === 'user.deactivated' ? 'عطّله' : 'أعاد تفعيله'} {who(r)}</span>
+                <b>{dateTime(r.created_at)}</b>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="scen__muted">لم يُعطَّل هذا الحساب من قبل</p>
+        )}
+      </>
+    );
+  } else {
+    const roles = user.roles || [];
+    const unique = new Set(roles.flatMap((r) => (roleInfo[r.id]?.permissions || []).map((p) => p.name)));
+    body = (
+      <>
+        <ul className="scen__list">
+          {roles.map((r) => (
+            <li key={r.id}>
+              <span>{r.label || r.name}</span>
+              <b>{roleInfo[r.id] ? `${roleInfo[r.id].permissions.length} صلاحية` : '—'}</b>
+            </li>
+          ))}
+        </ul>
+        <p className="scen__muted">
+          {roles.length > 1
+            ? `${roles.length} أدوار تمنحه ${unique.size} صلاحية مختلفة (الصلاحيات المشتركة تُحسب مرة واحدة)`
+            : 'لديه دور واحد فقط'}
+        </p>
+      </>
+    );
+  }
+
+  return (
+    <div className="scen" aria-live="polite">
+      {body}
+    </div>
+  );
 }
 
 const STATUS_TEXT = {
@@ -339,7 +443,7 @@ export default function UserDetail() {
             </span>
             <div>
               <h3>محاكي حالات المستخدم <bdi dir="ltr">(Audit &amp; Governance Sandbox)</bdi></h3>
-              <p>تنقل بين السيناريوهات الإدارية لمراجعة الحساب والصلاحيات الرقابية</p>
+              <p>اختر حالة لعرض بياناتها الحقيقية لهذا الحساب من السجل</p>
             </div>
           </div>
           <div className="sandbox__chips">
@@ -355,6 +459,7 @@ export default function UserDetail() {
               </button>
             ))}
           </div>
+          <ScenarioPanel kind={scenario || scenarioOf(user)} user={user} roleInfo={roleInfo} />
         </section>
       </div>
 
