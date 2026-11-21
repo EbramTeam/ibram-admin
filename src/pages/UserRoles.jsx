@@ -108,7 +108,8 @@ export default function UserRoles() {
   const removed = current.filter((rid) => !picked.includes(rid));
   const changed = !sameSet(picked, current);
   const term = q.trim();
-  const list = roles.filter((r) => !term || [r.label, r.name, r.description].join(' ').includes(term));
+  // inactive roles can't be given again, but stay visible for whoever already has them
+  const list = roles.filter((r) => (r.is_active !== false || current.includes(r.id)) && (!term || [r.label, r.name, r.description].join(' ').includes(term)));
 
   const toggle = (rid) => {
     setSaved(false);

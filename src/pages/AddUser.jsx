@@ -736,7 +736,7 @@ export default function AddUser() {
 
   useEffect(() => {
     fetchRoles()
-      .then(setRoles)
+      .then((list) => setRoles(list.filter((r) => r.is_active !== false)))
       .catch((err) => setLoadError(errorText(err)));
     fetchDepartments().then(setDepartments).catch(() => {});
   }, []);

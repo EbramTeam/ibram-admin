@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { api, errorText } from '../lib/api.js';
 import { fetchRoles, fetchPermissions, groupPermissions, actionError } from '../lib/users.js';
 import Cbx from '../components/Cbx.jsx';
@@ -72,7 +72,9 @@ function RoleCard({ role, selected, onSelect }) {
         <b>
           {role.permissions.length} صلاحيات معتمدة · {role.users_count} {role.users_count === 1 ? 'مستخدم' : 'مستخدمين'}
         </b>
-        <i>{role.is_locked ? 'مقفل' : info.tag || 'قياسي'}</i>
+        <i className={role.is_active === false ? 'is-off' : ''}>
+          {role.is_active === false ? 'غير نشط' : role.is_locked ? 'مقفل' : role.is_system === false ? 'مخصص' : info.tag || 'قياسي'}
+        </i>
       </span>
     </button>
   );
@@ -105,17 +107,56 @@ function PermItem({ item, onToggle, locked }) {
   );
 }
 
-function RolePanel({ role, allPermissions, onSaved, panelRef, flash }) {
+function RolePanel({ role, allPermissions, onSaved, onDeleted, panelRef, flash }) {
   const initial = useMemo(() => groupPermissions(allPermissions, new Set(role.permissions.map((p) => p.id))), [role, allPermissions]);
   const [draft, setDraft] = useState(initial);
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   useEffect(() => setDraft(initial), [initial]);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [notice, setNotice] = useState('');
   useEffect(() => {
     setSaved(false);
     setError('');
+    setConfirmDelete(false);
+    setNotice('');
   }, [role.id]);
+
+  const custom = role.is_system === false;
+  const inactive = role.is_active === false;
+
+  async function toggleActive() {
+    setSaving(true);
+    setError('');
+    setNotice('');
+    try {
+      const updated = await api(`/roles/${role.id}`, { method: 'PATCH', body: { is_active: inactive } });
+      onSaved(updated);
+      setNotice(inactive ? 'تم تفعيل الدور، وصلاحياته تُطبَّق فوراً على من يحمله' : 'تم تعطيل الدور: لا يمنح أي صلاحية ولا يُسند لمستخدمين جدد');
+    } catch (err) {
+      setError(actionError(err));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function remove() {
+    if (!confirmDelete) {
+      setConfirmDelete(true);
+      return;
+    }
+    setSaving(true);
+    setError('');
+    try {
+      await api(`/roles/${role.id}`, { method: 'DELETE' });
+      onDeleted(role.id);
+    } catch (err) {
+      setError(actionError(err));
+      setConfirmDelete(false);
+      setSaving(false);
+    }
+  }
 
   const locked = role.is_locked;
   const items = draft.flatMap((g) => g.items);
@@ -162,6 +203,8 @@ function RolePanel({ role, allPermissions, onSaved, panelRef, flash }) {
           <div className="rpanel__titlerow">
             <h2>{role.label || role.name}</h2>
             {locked && <span className="rtag">مقفل</span>}
+            {custom && <span className="rtag rtag--custom">مخصص</span>}
+            {inactive && <span className="rtag rtag--off">غير نشط</span>}
           </div>
           <p>
             {locked
@@ -205,6 +248,26 @@ function RolePanel({ role, allPermissions, onSaved, panelRef, flash }) {
         ))}
       </div>
 
+      {custom && (
+        <div className="rpanel__manage">
+          <button type="button" className="mini mini--soft" onClick={toggleActive} disabled={saving}>
+            {inactive ? 'تفعيل الدور' : 'تعطيل الدور'}
+          </button>
+          {role.users_count === 0 ? (
+            <button type="button" className={'mini mini--soft is-error' + (confirmDelete ? ' is-confirm' : '')} onClick={remove} disabled={saving}>
+              {confirmDelete ? 'تأكيد الحذف النهائي' : 'حذف الدور'}
+            </button>
+          ) : (
+            <small>لا يمكن حذف دور يحمله مستخدمون</small>
+          )}
+          {confirmDelete && (
+            <button type="button" className="rpanel__link" onClick={() => setConfirmDelete(false)}>
+              تراجع
+            </button>
+          )}
+        </div>
+      )}
+      {notice && <p className="rpanel__saved" role="status">{notice}</p>}
       {error && <p className="rpanel__error" role="alert">{error}</p>}
       {saved && !changed && <p className="rpanel__saved" role="status">تم حفظ صلاحيات الدور، وتُطبَّق فوراً على كل من يحمله</p>}
       {!locked && (
@@ -226,10 +289,19 @@ const TYPE_OPTS = [
   { v: '', t: 'نوع الدور : الكل' },
   { v: 'editable', t: 'نوع الدور : قابل للتعديل' },
   { v: 'locked', t: 'نوع الدور : مقفل' },
+  { v: 'custom', t: 'نوع الدور : مخصص' },
+  { v: 'inactive', t: 'نوع الدور : غير نشط' },
 ];
+const matchesType = (r, type) =>
+  !type ||
+  (type === 'locked' && r.is_locked) ||
+  (type === 'editable' && !r.is_locked) ||
+  (type === 'custom' && r.is_system === false) ||
+  (type === 'inactive' && r.is_active === false);
 
 export default function Roles() {
   const location = useLocation();
+  const navigate = useNavigate();
   const [roles, setRoles] = useState(null);
   const [allPermissions, setAllPermissions] = useState([]);
   const [loadError, setLoadError] = useState('');
@@ -281,7 +353,7 @@ export default function Roles() {
   const list = roles.filter(
     (r) =>
       (!term || [r.label, r.name, r.description].join(' ').includes(term)) &&
-      (!type || (type === 'locked') === r.is_locked)
+      matchesType(r, type)
   );
   const selected = roles.find((r) => r.id === selectedId);
   const reset = () => {
@@ -290,6 +362,10 @@ export default function Roles() {
     load();
   };
   const onSaved = (updated) => setRoles((rs) => rs.map((r) => (r.id === updated.id ? updated : r)));
+  const onDeleted = (id) => {
+    setRoles((rs) => rs.filter((r) => r.id !== id));
+    setSelectedId(null);
+  };
 
   const assignments = roles.reduce((s, r) => s + r.users_count, 0);
   const avg = roles.length ? Math.round(roles.reduce((s, r) => s + r.permissions.length, 0) / roles.length) : 0;
@@ -303,6 +379,11 @@ export default function Roles() {
         <div>
           <h1 className="page-title">الأدوار والصلاحيات</h1>
           <p className="page-subtitle">إدارة أدوار المستخدمين والتحكم في مصفوفة صلاحيات الوصول وفق معايير الحوكمة</p>
+        </div>
+        <div className="page-head__actions">
+          <button type="button" className="btn-primary" onClick={() => navigate('/roles/new')}>
+            إضافة دور جديد
+          </button>
         </div>
       </div>
 
@@ -381,7 +462,7 @@ export default function Roles() {
         </section>
 
         {selected ? (
-          <RolePanel role={selected} allPermissions={allPermissions} onSaved={onSaved} panelRef={panelRef} flash={flash > 0} />
+          <RolePanel role={selected} allPermissions={allPermissions} onSaved={onSaved} onDeleted={onDeleted} panelRef={panelRef} flash={flash > 0} />
         ) : (
           <EmptyPanel />
         )}

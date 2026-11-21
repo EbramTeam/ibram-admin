@@ -9,7 +9,9 @@ import { NAV_ITEMS } from '../data.js';
 import {
   GridIcon, UsersIcon, RolesIcon, VendorsIcon, DatabaseIcon, SettingsIcon,
   SearchIcon, BellIcon, GlobeIcon, ChevronLeftIcon, ShieldLockIcon, UserFilledIcon,
+  BuildingIcon, MailIcon,
 } from './Icons.jsx';
+import { ClipboardCheckIcon } from './MIcons.jsx';
 
 // small dropdown helper: closes on outside click and on Escape
 function useDropdown() {
@@ -29,11 +31,19 @@ function useDropdown() {
   return { open, setOpen, ref };
 }
 
-// TODO: load from the API (GET /api/notifications) when the panel is connected to the backend
 // notifications from GET /api/notifications, checked every minute while the panel is open
 const POLL_MS = 60000;
 const toneOf = (type) =>
   type.startsWith('security.') ? 'red' : type.startsWith('organization_request.') ? 'amber' : type.startsWith('contact_message.') ? 'green' : 'blue';
+// icon and short label shown under each notification
+const kindOf = (type) =>
+  type.startsWith('security.')
+    ? { icon: <ShieldLockIcon size={24} />, label: 'تنبيه أمني' }
+    : type.startsWith('organization_request.')
+      ? { icon: <BuildingIcon size={24} />, label: 'طلب تسجيل منشأة' }
+      : type.startsWith('contact_message.')
+        ? { icon: <MailIcon size={24} />, label: 'رسالة تواصل' }
+        : { icon: <ClipboardCheckIcon size={24} />, label: 'تحديث' };
 // where a notification leads in the admin panel (null = nowhere, it is only marked as read)
 const linkOf = (n) => {
   if (n.subject_type === 'user' && n.subject_id) return `/users/${n.subject_id}`;
@@ -48,6 +58,7 @@ function Bell() {
   const [unread, setUnread] = useState(0);
   const [loaded, setLoaded] = useState(false);
   const [failed, setFailed] = useState(false);
+  const [tab, setTab] = useState('all');
 
   const load = useCallback(() => {
     api('/notifications')
@@ -97,23 +108,24 @@ function Bell() {
       </button>
       {open && (
         <div className="bell__menu" role="menu">
-          <header className="bell__head">
-            <strong>الإشعارات</strong>
-            {unread > 0 && (
-              <button type="button" onClick={readAll}>
-                تحديد الكل كمقروء
-              </button>
-            )}
-          </header>
-          <ul>
-            {list.map((n) => {
+          <div className="bell__tabs" role="tablist">
+            <button type="button" role="tab" aria-selected={tab === 'all'} className={tab === 'all' ? 'is-on' : ''} onClick={() => setTab('all')}>
+              الكل <b>{list.length}</b>
+            </button>
+            <button type="button" role="tab" aria-selected={tab === 'unread'} className={tab === 'unread' ? 'is-on' : ''} onClick={() => setTab('unread')}>
+              غير مقروءة <b>{unread}</b>
+            </button>
+          </div>
+          <ul className="bell__list">
+            {(tab === 'unread' ? list.filter((n) => !n.read_at) : list).map((n) => {
               const to = linkOf(n);
+              const kind = kindOf(n.type);
               return (
                 <li key={n.id}>
                   <button
                     type="button"
                     role="menuitem"
-                    className={'bell__item' + (n.read_at ? '' : ' is-new')}
+                    className={'bell__item bell__item--' + toneOf(n.type) + (n.read_at ? '' : ' is-new')}
                     onClick={() => {
                       markRead(n);
                       if (to) {
@@ -122,22 +134,36 @@ function Bell() {
                       }
                     }}
                   >
-                    <i className={'bell__dot bell__dot--' + toneOf(n.type)} />
-                    <span>
-                      <b>{n.title}</b>
+                    <span className="bell__text">
+                      <b>
+                        {!n.read_at && <i className="bell__new" aria-label="غير مقروء" />}
+                        {n.title}
+                      </b>
                       {n.body && <small>{n.body}</small>}
-                      <em>{lastSeen(n.created_at)}</em>
+                      <em>
+                        {lastSeen(n.created_at)}
+                        <span>{kind.label}</span>
+                      </em>
                     </span>
+                    <span className="bell__icon">{kind.icon}</span>
                   </button>
                 </li>
               );
             })}
+            {loaded && tab === 'unread' && list.length > 0 && !unread && <li className="bell__empty">لا توجد إشعارات غير مقروءة</li>}
             {loaded && !list.length && <li className="bell__empty">{failed ? 'تعذّر تحميل الإشعارات' : 'لا توجد إشعارات'}</li>}
             {!loaded && <li className="bell__empty">جارٍ التحميل...</li>}
           </ul>
-          <Link to="/audit-log" className="bell__all" onClick={() => setOpen(false)}>
-            عرض سجل التدقيق
-          </Link>
+          <footer className="bell__foot">
+            {unread > 0 && (
+              <button type="button" onClick={readAll}>
+                تحديد الكل كمقروء
+              </button>
+            )}
+            <Link to="/audit-log" onClick={() => setOpen(false)}>
+              عرض سجل التدقيق
+            </Link>
+          </footer>
         </div>
       )}
     </div>

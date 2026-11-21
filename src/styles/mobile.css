@@ -412,3 +412,185 @@
   text-overflow: ellipsis;
   vertical-align: middle;
 }
+
+/* ---------- add role / manage custom roles ---------- */
+.rchoice.is-disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.acardbox.is-bad {
+  box-shadow: 0 0 0 2px #e5484d;
+}
+.afield-err {
+  margin: 8px 0 0;
+  color: #c62828;
+  font-size: 14px;
+  font-weight: 600;
+}
+.afield-err--foot {
+  margin: 16px 0 0;
+  text-align: center;
+}
+.asec-count {
+  font-size: 15px;
+  color: #4a5868;
+}
+.asec-count b {
+  color: #0a7cf0;
+}
+.rlist__none.is-err {
+  color: #c62828;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+.rtag--custom {
+  background: #e8f6ff;
+  color: #0a5fb4;
+}
+.rtag--off,
+.rolecard__foot i.is-off {
+  background: #fdecec;
+  color: #b42318;
+}
+.rpanel__manage {
+  margin-top: 14px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.rpanel__manage small {
+  color: #6b7785;
+  font-size: 13px;
+}
+.rpanel__manage .mini.is-error {
+  border-color: #e5484d;
+  color: #c62828;
+  background: #fff;
+}
+.rpanel__manage .mini.is-error:hover {
+  background: #fdecec;
+}
+.rpanel__manage .mini.is-error.is-confirm {
+  background: #c62828;
+  border-color: #c62828;
+  color: #fff;
+}
+
+/* ---------- notifications menu (tabs + grey cards, like the design) ---------- */
+.bell__menu {
+  width: min(640px, calc(100vw - 32px));
+  border-radius: 16px;
+  padding: 14px 14px 6px;
+}
+.bell__tabs {
+  display: flex;
+  gap: 12px;
+  padding: 0 0 14px;
+  margin-bottom: 14px;
+  border-bottom: 1px solid #e6e9ee;
+}
+.bell__tabs button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 46px;
+  padding: 0 22px;
+  border-radius: 999px;
+  border: 1px solid #c9ced6;
+  background: #fff;
+  color: #0a1a2e;
+  font-size: 15px;
+  font-weight: 500;
+}
+.bell__tabs button:hover {
+  background: #f3f9ff;
+}
+.bell__tabs button.is-on {
+  border-color: transparent;
+  background: linear-gradient(90deg, #0a8cff, #17b4f5);
+  color: #fff;
+}
+.bell__tabs b {
+  font-weight: 600;
+}
+.bell__list {
+  max-height: min(60vh, 460px);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.bell__menu .bell__item,
+.bell__menu .bell__item.is-new {
+  align-items: center;
+  gap: 16px;
+  padding: 16px 18px;
+  border: 0;
+  border-radius: 14px;
+  background: #f2f3f5;
+}
+.bell__menu .bell__item:hover {
+  background: #e9edf2;
+}
+.bell__text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.bell__menu .bell__item b {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 16px;
+  font-weight: 700;
+  color: #0a1a2e;
+}
+.bell__new {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #0a8cff;
+}
+.bell__menu .bell__item small {
+  font-size: 14px;
+  color: #3d434a;
+  line-height: 1.6;
+}
+.bell__menu .bell__item em {
+  display: flex;
+  gap: 18px;
+  font-size: 13px;
+  color: #8a9099;
+}
+.bell__icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  color: #0a1a2e;
+}
+.bell__item--red .bell__icon {
+  color: #b42318;
+}
+.bell__foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 4px 8px;
+}
+.bell__foot a {
+  margin-inline-start: auto;
+}
+.bell__foot a,
+.bell__foot button {
+  font-size: 14px;
+  font-weight: 600;
+  color: #0a7cff;
+}
