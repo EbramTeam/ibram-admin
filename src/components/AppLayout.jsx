@@ -1,7 +1,9 @@
 import LangButton from './LangButton.jsx';
 import { useMaster } from '../masterStore.jsx';
 import { useAuth } from '../auth.jsx';
-import { useEffect, useRef, useState } from 'react';
+import { api } from '../lib/api.js';
+import { lastSeen } from '../lib/users.js';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { NAV_ITEMS } from '../data.js';
 import {
@@ -28,18 +30,59 @@ function useDropdown() {
 }
 
 // TODO: load from the API (GET /api/notifications) when the panel is connected to the backend
-const NOTIFICATIONS = [
-  { id: 1, title: 'محاولات دخول فاشلة متكررة', text: '3 محاولات من عنوان 185.44.10.2 وتم حظره مؤقتاً', time: 'منذ 55 دقيقة', tone: 'red', to: '/audit-log' },
-  { id: 2, title: 'دعوات مستخدمين معلقة', text: '12 مستخدماً لم يفعّلوا حساباتهم بعد', time: 'منذ ساعتين', tone: 'amber', to: '/users' },
-  { id: 3, title: 'تم تعديل صلاحيات دور', text: 'المالية / الموازنة: أُزيلت صلاحية واحدة', time: 'منذ 3 ساعات', tone: 'blue', to: '/roles' },
-  { id: 4, title: 'مورد جديد بانتظار الاعتماد', text: 'شركة النور للتجهيزات', time: 'أمس', tone: 'green', to: '/vendors' },
-];
+// notifications from GET /api/notifications, checked every minute while the panel is open
+const POLL_MS = 60000;
+const toneOf = (type) =>
+  type.startsWith('security.') ? 'red' : type.startsWith('organization_request.') ? 'amber' : type.startsWith('contact_message.') ? 'green' : 'blue';
+// where a notification leads in the admin panel (null = nowhere, it is only marked as read)
+const linkOf = (n) => {
+  if (n.subject_type === 'user' && n.subject_id) return `/users/${n.subject_id}`;
+  if (n.type.startsWith('security.')) return '/audit-log';
+  return null;
+};
 
 function Bell() {
   const { open, setOpen, ref } = useDropdown();
   const navigate = useNavigate();
-  const [read, setRead] = useState([]);
-  const unread = NOTIFICATIONS.filter((n) => !read.includes(n.id)).length;
+  const [list, setList] = useState([]);
+  const [unread, setUnread] = useState(0);
+  const [loaded, setLoaded] = useState(false);
+  const [failed, setFailed] = useState(false);
+
+  const load = useCallback(() => {
+    api('/notifications')
+      .then((r) => {
+        setList(r.notifications.data);
+        setUnread(r.unread_count);
+        setFailed(false);
+      })
+      .catch(() => setFailed(true))
+      .finally(() => setLoaded(true));
+  }, []);
+
+  useEffect(() => {
+    load();
+    const t = setInterval(() => document.visibilityState === 'visible' && load(), POLL_MS);
+    return () => clearInterval(t);
+  }, [load]);
+
+  // opening the menu refreshes it
+  useEffect(() => {
+    if (open) load();
+  }, [open, load]);
+
+  const markRead = (n) => {
+    if (n.read_at) return;
+    setList((l) => l.map((x) => (x.id === n.id ? { ...x, read_at: new Date().toISOString() } : x)));
+    setUnread((u) => Math.max(0, u - 1));
+    api(`/notifications/${n.id}/read`, { method: 'POST' }).catch(() => load());
+  };
+  const readAll = () => {
+    setList((l) => l.map((x) => ({ ...x, read_at: x.read_at || new Date().toISOString() })));
+    setUnread(0);
+    api('/notifications/read-all', { method: 'POST' }).catch(() => load());
+  };
+
   return (
     <div className="bell" ref={ref}>
       <button
@@ -50,40 +93,47 @@ function Bell() {
         onClick={() => setOpen((v) => !v)}
       >
         <BellIcon size={24} />
-        {unread > 0 && <span className="bell__count">{unread}</span>}
+        {unread > 0 && <span className="bell__count">{unread > 99 ? '99+' : unread}</span>}
       </button>
       {open && (
         <div className="bell__menu" role="menu">
           <header className="bell__head">
             <strong>الإشعارات</strong>
             {unread > 0 && (
-              <button type="button" onClick={() => setRead(NOTIFICATIONS.map((n) => n.id))}>
+              <button type="button" onClick={readAll}>
                 تحديد الكل كمقروء
               </button>
             )}
           </header>
           <ul>
-            {NOTIFICATIONS.map((n) => (
-              <li key={n.id}>
-                <button
-                  type="button"
-                  role="menuitem"
-                  className={'bell__item' + (read.includes(n.id) ? '' : ' is-new')}
-                  onClick={() => {
-                    setRead((r) => [...new Set([...r, n.id])]);
-                    setOpen(false);
-                    navigate(n.to);
-                  }}
-                >
-                  <i className={'bell__dot bell__dot--' + n.tone} />
-                  <span>
-                    <b>{n.title}</b>
-                    <small>{n.text}</small>
-                    <em>{n.time}</em>
-                  </span>
-                </button>
-              </li>
-            ))}
+            {list.map((n) => {
+              const to = linkOf(n);
+              return (
+                <li key={n.id}>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className={'bell__item' + (n.read_at ? '' : ' is-new')}
+                    onClick={() => {
+                      markRead(n);
+                      if (to) {
+                        setOpen(false);
+                        navigate(to);
+                      }
+                    }}
+                  >
+                    <i className={'bell__dot bell__dot--' + toneOf(n.type)} />
+                    <span>
+                      <b>{n.title}</b>
+                      {n.body && <small>{n.body}</small>}
+                      <em>{lastSeen(n.created_at)}</em>
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+            {loaded && !list.length && <li className="bell__empty">{failed ? 'تعذّر تحميل الإشعارات' : 'لا توجد إشعارات'}</li>}
+            {!loaded && <li className="bell__empty">جارٍ التحميل...</li>}
           </ul>
           <Link to="/audit-log" className="bell__all" onClick={() => setOpen(false)}>
             عرض سجل التدقيق

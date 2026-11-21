@@ -1691,5 +1691,9 @@
 "لا يوجد مستخدمون بانتظار التفعيل": "No users are waiting for activation",
 "إرسال رابط تعيين كلمة المرور بالبريد لكل المستخدمين الذين ينتظرون التفعيل؟": "Email a set-password link to every user waiting for activation?",
 "أُرسلت الروابط قبل قليل، حاول بعد دقيقتين": "Links were sent a moment ago, try again in two minutes",
-"إرسال روابط التفعيل": "Activation links sent"
+"إرسال روابط التفعيل": "Activation links sent",
+"لا توجد إشعارات": "No notifications",
+"تعذّر تحميل الإشعارات": "Could not load notifications",
+"طلب تسجيل منشأة جديد": "New organization sign-up request",
+"رسالة جديدة من الموقع": "New message from the website"
 }

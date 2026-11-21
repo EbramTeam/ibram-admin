@@ -423,3 +423,9 @@
 .sidebar__profile > .pmenu {
   flex: none;
 }
+.bell__empty {
+  padding: 24px 16px;
+  text-align: center;
+  color: #6b7280;
+  font-size: 14px;
+}
