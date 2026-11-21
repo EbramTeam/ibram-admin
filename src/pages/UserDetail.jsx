@@ -68,6 +68,19 @@ function validate(d) {
   return e;
 }
 
+const SCENARIOS = [
+  { key: 'new', label: 'مستخدم جديد (بدون نشاط)', dot: '#555' },
+  { key: 'lead', label: 'مستخدم نشط وقيادي', dot: '#1a8cff' },
+  { key: 'disabled', label: 'حساب معطل', dot: '#e53030' },
+  { key: 'multi', label: 'أدوار متعددة', dot: '#1a8cff' },
+];
+function scenarioOf(u) {
+  if (!u.is_active) return 'disabled';
+  if (!u.last_login_at) return 'new';
+  if ((u.roles || []).length > 1) return 'multi';
+  return 'lead';
+}
+
 const STATUS_TEXT = {
   enabled: 'نشط',
   pending: 'نشط، بانتظار تغيير كلمة المرور المؤقتة',
@@ -95,6 +108,7 @@ export default function UserDetail() {
   const [statusError, setStatusError] = useState('');
   const [statusMsg, setStatusMsg] = useState('');
   const [resetOpen, setResetOpen] = useState(false);
+  const [scenario, setScenario] = useState(null);
   const infoRef = useRef(null);
 
   const load = useCallback(async () => {
@@ -317,22 +331,29 @@ export default function UserDetail() {
           </div>
         </section>
 
-        {/* account summary (left) */}
+        {/* sandbox (left): the chip that matches this account is picked first */}
         <section className="dcard sandbox">
           <div className="sandbox__head">
             <span className="sandbox__icon">
               <SlidersIcon size={22} />
             </span>
             <div>
-              <h3>ملخص الحساب</h3>
-              <p>{isMe ? 'هذا حسابك أنت: لا يمكنك تعطيله أو تعديل أدواره بنفسك' : 'نظرة سريعة على حالة الحساب ونشاطه'}</p>
+              <h3>محاكي حالات المستخدم <bdi dir="ltr">(Audit &amp; Governance Sandbox)</bdi></h3>
+              <p>تنقل بين السيناريوهات الإدارية لمراجعة الحساب والصلاحيات الرقابية</p>
             </div>
           </div>
           <div className="sandbox__chips">
-            <span className="schip"><i style={{ background: locked ? '#e53030' : '#1a8cff' }} />{locked ? 'الحساب معطل' : 'الحساب نشط'}</span>
-            <span className="schip"><i style={{ background: '#1a8cff' }} />{roles.length} {roles.length === 1 ? 'دور' : 'أدوار'}</span>
-            <span className="schip"><i style={{ background: user.last_login_at ? '#1a8cff' : '#555' }} />{user.last_login_at ? 'سجّل الدخول من قبل' : 'لم يسجّل الدخول بعد'}</span>
-            {user.must_change_password && <span className="schip"><i style={{ background: '#f0a020' }} />كلمة مرور مؤقتة</span>}
+            {SCENARIOS.map((s) => (
+              <button
+                key={s.key}
+                type="button"
+                className={'schip' + ((scenario || scenarioOf(user)) === s.key ? ' is-on' : '')}
+                onClick={() => setScenario(s.key)}
+              >
+                <i style={{ background: s.dot }} />
+                {s.label}
+              </button>
+            ))}
           </div>
         </section>
       </div>
