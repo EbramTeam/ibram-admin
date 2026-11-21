@@ -308,6 +308,10 @@ export default function Roles() {
   const [q, setQ] = useState('');
   const [type, setType] = useState('');
   const [selectedId, setSelectedId] = useState(location.state?.selectId || null);
+  // a notification can open a role while this page is already showing
+  useEffect(() => {
+    if (location.state?.selectId) setSelectedId(location.state.selectId);
+  }, [location.state]);
   const [flash, setFlash] = useState(0);
   const panelRef = useRef(null);
 

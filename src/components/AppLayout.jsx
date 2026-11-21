@@ -36,18 +36,30 @@ const POLL_MS = 60000;
 const toneOf = (type) =>
   type.startsWith('security.') ? 'red' : type.startsWith('organization_request.') ? 'amber' : type.startsWith('contact_message.') ? 'green' : 'blue';
 // icon and short label shown under each notification
-const kindOf = (type) =>
-  type.startsWith('security.')
-    ? { icon: <ShieldLockIcon size={24} />, label: 'تنبيه أمني' }
-    : type.startsWith('organization_request.')
-      ? { icon: <BuildingIcon size={24} />, label: 'طلب تسجيل منشأة' }
-      : type.startsWith('contact_message.')
-        ? { icon: <MailIcon size={24} />, label: 'رسالة تواصل' }
-        : { icon: <ClipboardCheckIcon size={24} />, label: 'تحديث' };
+const kindOf = (type) => {
+  const area = type.split('.')[0];
+  if (area === 'security') return { icon: <ShieldLockIcon size={24} />, label: 'تنبيه أمني' };
+  if (area === 'organization_request') return { icon: <BuildingIcon size={24} />, label: 'طلب تسجيل منشأة' };
+  if (area === 'contact_message') return { icon: <MailIcon size={24} />, label: 'رسالة تواصل' };
+  if (area === 'user' || area === 'account') return { icon: <UsersIcon size={24} />, label: 'المستخدمون' };
+  if (area === 'role') return { icon: <RolesIcon size={24} />, label: 'الأدوار والصلاحيات' };
+  if (area === 'supplier') return { icon: <VendorsIcon size={24} />, label: 'الموردون' };
+  if (area === 'organization') return { icon: <SettingsIcon size={24} />, label: 'إعدادات المنشأة' };
+  if (['department', 'category', 'unit', 'item'].includes(area)) return { icon: <DatabaseIcon size={24} />, label: 'البيانات الأساسية' };
+  return { icon: <ClipboardCheckIcon size={24} />, label: 'تحديث' };
+};
+const MASTER_PATHS = { department: 'departments', item_category: 'categories', unit: 'units', item: 'items' };
 // where a notification leads in the admin panel (null = nowhere, it is only marked as read)
 const linkOf = (n) => {
-  if (n.subject_type === 'user' && n.subject_id) return `/users/${n.subject_id}`;
+  const deleted = n.type.endsWith('.deleted');
+  const id = n.subject_id;
+  if (n.subject_type === 'user' && id) return `/users/${id}`;
+  if (n.subject_type === 'role') return { pathname: '/roles', state: deleted ? undefined : { selectId: id } };
+  if (n.subject_type === 'supplier' && id) return `/vendors/${id}`;
+  if (MASTER_PATHS[n.subject_type]) return `/master-data/${MASTER_PATHS[n.subject_type]}` + (deleted || !id ? '' : `/${id}`);
+  if (n.subject_type === 'organization') return '/settings/general';
   if (n.type.startsWith('security.')) return '/audit-log';
+  if (n.type === 'user.invitations_sent') return '/users';
   return null;
 };
 
@@ -130,7 +142,8 @@ function Bell() {
                       markRead(n);
                       if (to) {
                         setOpen(false);
-                        navigate(to);
+                        if (typeof to === 'string') navigate(to);
+                        else navigate(to.pathname, { state: to.state });
                       }
                     }}
                   >
