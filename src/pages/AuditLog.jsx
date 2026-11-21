@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import CountUp from '../components/CountUp.jsx';
+import { exportXlsx } from '../lib/exportXlsx.js';
 import { SearchIcon, RefreshIcon, ChevronDownIcon, LogsIcon, ShieldLockIcon, WarnIcon, RolesIcon, ExportIcon } from '../components/Icons.jsx';
 import { AUDIT_LOGS, AUDIT_USERS, EVENT_GROUPS, EVENT_LABELS, SUBJECT_LABELS, groupOf, matchesGroup } from '../auditData.js';
 
@@ -109,23 +110,6 @@ function DateField({ label, value, onChange, min, max }) {
   );
 }
 
-function toCsv(rows) {
-  const esc = (s) => '"' + String(s ?? '').replace(/"/g, '""') + '"';
-  const head = ['التاريخ', 'المستخدم', 'العملية', 'الحدث', 'العنصر', 'التفاصيل', 'IP'];
-  const lines = rows.map((r) =>
-    [
-      r.created_at,
-      r.user?.name || 'النظام / زائر',
-      EVENT_LABELS[r.event] || r.event,
-      r.event,
-      r.subject_type ? `${SUBJECT_LABELS[r.subject_type] || r.subject_type} #${r.subject_id}` : '',
-      r.details ? Object.entries(r.details).map(([k, v]) => `${DETAIL_LABELS[k] || k}: ${detailValue(k, v)}`).join(' | ') : '',
-      r.ip_address,
-    ].map(esc).join(',')
-  );
-  // BOM so Excel opens Arabic correctly
-  return '﻿' + [head.map(esc).join(','), ...lines].join('\r\n');
-}
 
 export default function AuditLog() {
   const [q, setQ] = useState('');
@@ -174,17 +158,25 @@ export default function AuditLog() {
     perms: todayRows.filter((r) => r.event === 'user.roles_changed' || r.event === 'role.permissions_changed').length,
   };
 
-  const exportCsv = () => {
-    const blob = new Blob([toCsv(rows)], { type: 'text/csv;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `audit-log-${new Date().toISOString().slice(0, 10)}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-  };
+  const exportCsv = () =>
+    exportXlsx(
+      `ibram-audit-log-${new Date().toISOString().slice(0, 10)}`,
+      ['التاريخ', 'الوقت', 'المستخدم', 'العملية', 'الحدث', 'العنصر', 'التفاصيل', 'عنوان IP'],
+      rows.map((r) => {
+        const { date, time } = fmtDate(r.created_at);
+        return [
+          date,
+          time,
+          r.user?.name || 'زائر / غير مسجل',
+          EVENT_LABELS[r.event] || r.event,
+          r.event,
+          r.subject_type ? `${SUBJECT_LABELS[r.subject_type] || r.subject_type} #${r.subject_id}` : '',
+          r.details ? Object.entries(r.details).map(([k, v]) => `${DETAIL_LABELS[k] || k}: ${detailValue(k, v)}`).join('  •  ') : '',
+          r.ip_address,
+        ];
+      }),
+      { sheet: 'سجل التدقيق' }
+    );
 
   const setFilter = (fn) => (v) => {
     fn(v);
@@ -201,7 +193,7 @@ export default function AuditLog() {
         <div className="page-head__actions">
           <button type="button" className="btn-primary" onClick={exportCsv} disabled={!rows.length}>
             <ExportIcon size={20} />
-            تصدير السجل (CSV)
+            تصدير السجل (Excel)
           </button>
         </div>
       </div>

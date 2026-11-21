@@ -692,3 +692,80 @@
     justify-content: center;
   }
 }
+
+/* ----- users from the API ----- */
+.utable__empty,
+.users-msg {
+  padding: 40px 24px;
+  background: #fff;
+  text-align: center;
+  font-size: 15px;
+  color: #666;
+}
+.users-msg.is-err {
+  margin-top: 24px;
+  border-radius: 28px;
+  color: #c62020;
+}
+.users-msg button {
+  margin-inline-start: 12px;
+  color: #0a7cff;
+  font-weight: 600;
+}
+.utable .pager__ctrl button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.tpm__box {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 18px;
+  border-radius: 14px;
+  background: #f3f9ff;
+  border: 1px dashed #1a8cff;
+}
+.tpm__box code {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: #0a1a2e;
+  overflow-wrap: anywhere;
+}
+.tpm__copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 38px;
+  padding: 0 16px;
+  flex: none;
+}
+
+/* long usernames (e.g. @procurement_officer) stay inside their column */
+.utable__row > span {
+  min-width: 0;
+}
+.pill--handle {
+  max-width: 100%;
+  padding-inline: 16px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+.uid__text small {
+  overflow-wrap: anywhere;
+}
+.uid__text {
+  flex: 1;
+}
+.uid__text strong {
+  overflow-wrap: anywhere;
+}
+
+/* username column: centred */
+.utable__head > .utable__handle,
+.utable__row > .utable__handle {
+  text-align: center;
+}

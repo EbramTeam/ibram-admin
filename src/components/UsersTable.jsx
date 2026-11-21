@@ -21,7 +21,7 @@ import {
 } from './Icons.jsx';
 
 /* ---------- dropdown menu used by every ⋮ button ---------- */
-export function KebabMenu({ id = DETAIL_USER_ID, placement = 'below' }) {
+export function KebabMenu({ id = DETAIL_USER_ID, placement = 'below', onResetPassword }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
   const navigate = useNavigate();
@@ -64,7 +64,8 @@ export function KebabMenu({ id = DETAIL_USER_ID, placement = 'below' }) {
             role="menuitem"
             onClick={() => {
               setOpen(false);
-              navigate('/reset-password');
+              if (onResetPassword) onResetPassword();
+              else navigate('/reset-password');
             }}
           >
             <span>إعادة تعيين كلمة المرور</span>
@@ -109,10 +110,10 @@ export function useUserFilters() {
   return { q, setQ, role, setRole, dept, setDept, status, setStatus, chips, setChips, reset };
 }
 
-export function UsersFilters({ f, layout = 'stacked' }) {
-  const roleOpts = ROLES_FILTER.map((r) => ({ value: r, label: r }));
-  const deptOpts = DEPTS_FILTER.map((r) => ({ value: r, label: r }));
-  const statusOpts = Object.entries(STATUS).map(([k, v]) => ({ value: k, label: v.label }));
+export function UsersFilters({ f, layout = 'stacked', roleNames = ROLES_FILTER, deptNames = DEPTS_FILTER, showChips = true, statusKeys = ['active', 'pending', 'inactive', 'disabled'] }) {
+  const roleOpts = roleNames.map((r) => ({ value: r, label: r }));
+  const deptOpts = deptNames.map((r) => ({ value: r, label: r }));
+  const statusOpts = statusKeys.map((k) => ({ value: k, label: STATUS[k].label }));
 
   const search = (
     <label className="search-field">
@@ -161,7 +162,7 @@ export function UsersFilters({ f, layout = 'stacked' }) {
           {refresh}
         </div>
       )}
-      <div className="filters__chips">
+      {showChips && <div className="filters__chips">
         <span className="filters__label">الفلاتر المطبقة:</span>
         {f.chips.map((c) => {
           const [k, ...rest] = c.split(':');
@@ -177,7 +178,7 @@ export function UsersFilters({ f, layout = 'stacked' }) {
         <button type="button" className="chips-clear" onClick={() => f.setChips([])}>
           مسح الكل
         </button>
-      </div>
+      </div>}
     </section>
   );
 }
@@ -189,15 +190,17 @@ function StatusPill({ status }) {
     <span className={'status ' + s.cls}>
       {status === 'pending' && <HourglassIcon size={14} />}
       {status === 'disabled' && <BanIcon size={14} />}
-      {(status === 'active' || status === 'inactive') && <i className="status__dot" />}
+      {(status === 'active' || status === 'enabled' || status === 'inactive') && <i className="status__dot" />}
       {s.label}
     </span>
   );
 }
 
 /* ---------- table ---------- */
-export function UsersTable({ rows: initialRows, f }) {
+export function UsersTable({ rows: initialRows, f, onLock, onResetPassword, pageSize, emptyText = 'لا يوجد مستخدمون مطابقون للفلاتر' }) {
   const [rows, setRows] = useState(initialRows);
+  const [page, setPage] = useState(1);
+  useEffect(() => setRows(initialRows), [initialRows]);
   const [selected, setSelected] = useState(() => new Set());
   const navigate = useNavigate();
 
@@ -205,12 +208,16 @@ export function UsersTable({ rows: initialRows, f }) {
     const q = f.q.trim().toLowerCase();
     return rows.filter((r) => {
       if (q && !(r.name + r.handle + r.email).toLowerCase().includes(q)) return false;
-      if (f.role && r.role !== f.role) return false;
+      if (f.role && !(r.roles || [r.role]).includes(f.role)) return false;
       if (f.dept && r.dept !== f.dept) return false;
       if (f.status && r.status !== f.status) return false;
       return true;
     });
   }, [rows, f.q, f.role, f.dept, f.status]);
+  useEffect(() => setPage(1), [f.q, f.role, f.dept, f.status]);
+  const pages = pageSize ? Math.max(1, Math.ceil(visible.length / pageSize)) : 1;
+  const cur = Math.min(page, pages);
+  const shown = pageSize ? visible.slice((cur - 1) * pageSize, cur * pageSize) : visible;
 
   const allSelected = visible.length > 0 && visible.every((r) => selected.has(r.rowKey));
 
@@ -223,6 +230,7 @@ export function UsersTable({ rows: initialRows, f }) {
     setSelected(next);
   }
   function toggleLock(key) {
+    if (onLock) return onLock(rows.find((r) => r.rowKey === key));
     setRows((rs) =>
       rs.map((r) =>
         r.rowKey === key
@@ -241,19 +249,19 @@ export function UsersTable({ rows: initialRows, f }) {
           <input type="checkbox" className="cb" checked={allSelected} onChange={toggleAll} aria-label="تحديد الكل" />
         </span>
         <span>المستخدم والهوية</span>
-        <span>اسم المستخدم (المعرف)</span>
+        <span className="utable__handle">اسم المستخدم (المعرف)</span>
         <span>الإدارة/ القسم</span>
         <span>الدور والصلاحية</span>
         <span>الحالة التشغيلية</span>
         <span>آخر نشاط بالنظام</span>
         <span>الإجراءات</span>
       </div>
-      {visible.map((r) => (
+      {shown.map((r) => (
         <div className="utable__row" role="row" key={r.rowKey}>
           <span className="utable__cb">
             <input type="checkbox" className="cb" checked={selected.has(r.rowKey)} onChange={() => toggleOne(r.rowKey)} aria-label="تحديد" />
           </span>
-          <Link to={`/users/${DETAIL_USER_ID}`} className="uid">
+          <Link to={`/users/${r.id ?? DETAIL_USER_ID}`} className="uid">
             <span className={'avatar avatar--' + r.avatar}>{r.initials}</span>
             <span className="uid__text">
               <strong>
@@ -263,8 +271,8 @@ export function UsersTable({ rows: initialRows, f }) {
               <small>{r.email}</small>
             </span>
           </Link>
-          <span>
-            <span className="pill">{r.handle}</span>
+          <span className="utable__handle">
+            <span className="pill pill--handle" title={r.handle}>{r.handle}</span>
           </span>
           <span className="dept">
             <strong>{r.dept}</strong>
@@ -281,16 +289,39 @@ export function UsersTable({ rows: initialRows, f }) {
             <small>{r.lastSub}</small>
           </span>
           <span className="acts">
-            <button type="button" className="act act--edit" aria-label="تعديل" onClick={() => navigate(`/users/${DETAIL_USER_ID}`)}>
+            <button type="button" className="act act--edit" aria-label="تعديل" onClick={() => navigate(`/users/${r.id ?? DETAIL_USER_ID}`)}>
               <PencilIcon size={20} />
             </button>
-            <button type="button" className="act act--lock" aria-label="قفل" onClick={() => toggleLock(r.rowKey)}>
+            <button
+              type="button"
+              className={'act ' + (r.status === 'disabled' ? 'act--unlock' : 'act--lock')}
+              aria-label={r.status === 'disabled' ? 'إعادة تفعيل الحساب' : 'تعطيل الحساب'}
+              title={r.status === 'disabled' ? 'إعادة تفعيل الحساب' : 'تعطيل الحساب'}
+              onClick={() => toggleLock(r.rowKey)}
+            >
               <LockIcon size={20} />
             </button>
-            <KebabMenu />
+            <KebabMenu id={r.id ?? DETAIL_USER_ID} onResetPassword={onResetPassword ? () => onResetPassword(r) : undefined} />
           </span>
         </div>
       ))}
+      {!shown.length && <div className="utable__empty">{emptyText}</div>}
+      {pageSize && (
+        <div className="pager">
+          <span className="pager__info">
+            عرض {visible.length ? (cur - 1) * pageSize + 1 : 0} إلى {Math.min(cur * pageSize, visible.length)} من أصل {visible.length} مستخدم
+          </span>
+          <div className="pager__ctrl">
+            <button type="button" onClick={() => setPage(cur - 1)} disabled={cur === 1} aria-label="السابق">‹</button>
+            {Array.from({ length: pages }, (_, i) => i + 1).map((n) => (
+              <button type="button" key={n} className={n === cur ? 'is-on' : ''} onClick={() => setPage(n)} aria-current={n === cur ? 'page' : undefined}>
+                {n}
+              </button>
+            ))}
+            <button type="button" onClick={() => setPage(cur + 1)} disabled={cur === pages} aria-label="التالي">›</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

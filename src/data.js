@@ -11,6 +11,8 @@ export const NAV_ITEMS = [
 
 export const STATUS = {
   active: { label: 'نشط الآن', cls: 'st-active' },
+  // real users from the API: the account works and has signed in before
+  enabled: { label: 'نشط', cls: 'st-active' },
   pending: { label: 'بإنتظار التفعيل', cls: 'st-pending' },
   inactive: { label: 'غير نشط', cls: 'st-inactive' },
   disabled: { label: 'معطل', cls: 'st-disabled' },

@@ -3,7 +3,7 @@ import { CloseCircleIcon, PauseCircleIcon, UserRefreshIcon, ShieldIcon } from '.
 
 // Disable / re-enable a user account. Same look as the vendor status dialog.
 // A reason is required both ways: it goes to the audit log.
-export default function UserStatusModal({ mode, user, onClose, onConfirm }) {
+export default function UserStatusModal({ mode, user, onClose, onConfirm, askReason = true, busy = false, error = '' }) {
   const off = mode === 'deactivate';
   const [reason, setReason] = useState('');
   const [tried, setTried] = useState(false);
@@ -12,15 +12,15 @@ export default function UserStatusModal({ mode, user, onClose, onConfirm }) {
   useEffect(() => {
     const esc = (e) => e.key === 'Escape' && onClose();
     document.addEventListener('keydown', esc);
-    ta.current?.focus();
+    if (askReason) ta.current?.focus();
     return () => document.removeEventListener('keydown', esc);
-  }, [onClose]);
+  }, [onClose, askReason]);
 
-  const bad = tried && !reason.trim();
+  const bad = askReason && tried && !reason.trim();
   const submit = (e) => {
     e.preventDefault();
     setTried(true);
-    if (reason.trim()) onConfirm(reason.trim());
+    if (!askReason || reason.trim()) onConfirm(reason.trim());
     else ta.current?.focus();
   };
 
@@ -62,9 +62,11 @@ export default function UserStatusModal({ mode, user, onClose, onConfirm }) {
             <div className="vmodal__vtop">
               <strong>{user.name}</strong>
             </div>
-            <span>الرقم الوظيفي: <bdi dir="ltr">{user.empId}</bdi></span>
+            {user.empId && <span>الرقم الوظيفي: <bdi dir="ltr">{user.empId}</bdi></span>}
             <span>البريد: <bdi dir="ltr">{user.email}</bdi></span>
           </div>
+          {error && <p className="auth-alert" role="alert">{error}</p>}
+          {askReason && <>
           <label className="pm-label" htmlFor="usm-reason">{off ? 'سبب التعطيل' : 'سبب إعادة التفعيل'} <b>*</b></label>
           <textarea
             id="usm-reason"
@@ -76,10 +78,13 @@ export default function UserStatusModal({ mode, user, onClose, onConfirm }) {
             aria-invalid={bad || undefined}
           />
           {bad && <small className="itile__err" role="alert">هذا الحقل مطلوب</small>}
+          </>}
         </div>
         <footer className="pmodal__foot vmodal__foot">
           <button type="button" className="btn-outline vm-cancel" onClick={onClose}>إلغاء</button>
-          <button type="submit" className={off ? 'vm-danger' : 'btn-primary vm-ok'}>{off ? 'تعطيل الحساب' : 'إعادة تفعيل الحساب'}</button>
+          <button type="submit" className={off ? 'vm-danger' : 'btn-primary vm-ok'} disabled={busy}>
+            {busy ? 'جارٍ التنفيذ...' : off ? 'تعطيل الحساب' : 'إعادة تفعيل الحساب'}
+          </button>
         </footer>
       </form>
     </div>

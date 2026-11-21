@@ -1,8 +1,13 @@
-import { useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { KebabMenu } from '../components/UsersTable.jsx';
 import UserStatusModal from '../components/UserStatusModal.jsx';
+import TempPasswordModal from '../components/TempPasswordModal.jsx';
 import { LockOpenIcon } from '../components/MIcons.jsx';
+import { api, ApiError, errorText } from '../lib/api.js';
+import { useAuth } from '../auth.jsx';
+import { fetchUser, fetchRoles, fetchDepartments, initials, statusOf, lastSeen, longDate, dateTime, actionError } from '../lib/users.js';
+import { STATUS } from '../data.js';
 import {
   LockIcon,
   PencilIcon,
@@ -12,35 +17,11 @@ import {
   SlidersIcon,
   IdCardIcon,
   CopyIcon,
-  SyncIcon,
   ShieldCheckIcon,
 } from '../components/Icons.jsx';
 
-const SCENARIOS = [
-  { key: 'new', label: 'مستخدم جديد (بدون نشاط)', dot: '#555' },
-  { key: 'lead', label: 'مستخدم نشط وقيادي', dot: '#1a8cff' },
-  { key: 'disabled', label: 'حساب معطل', dot: '#e53030' },
-  { key: 'multi', label: 'أدوار متعددة', dot: '#1a8cff' },
-];
-
-const ROLES = [
-  {
-    main: true,
-    title: 'رئيس لجنة فحص العروض',
-    text: 'صلاحية كاملة لترؤس جلسات فتح وفحص العروض الفنية والمالية، ومصادقة التوصيات الفنية قبل الرفع للجنة الشراء المركزية.',
-    meta: 'مستوى الحوكمة: لجان المشتريات الاستراتيجية • مفعل منذ 15 يوماً',
-  },
-  {
-    title: 'معتمد طلبات الصرف المالي (حق 500,000 ر.س)',
-    text: 'حق اعتماد استمارات أوامر الشراء والارتباط المالي للمشاريع المعتمدة ضمن الموازنة التشغيلية المخصصة للإدارة.',
-    meta: 'المستوى المالي الثالث • صلاحية صرف ومصادقة',
-  },
-  {
-    title: 'أخصائي منافسات استراتيجية',
-    text: 'إعداد كراسات الشروط والمواصفات، ومراجعة متطلبات الموردين ومطابقتها للمعايير والأنظمة الوطنية المعتمدة.',
-    meta: 'إدارة العقود والتوريد والمنافسات العامة',
-  },
-];
+// One user, from GET /api/users/{id}. Edit = PATCH /api/users/{id} (name, email, department_id).
+// Roles are changed on /users/{id}/permissions.
 
 function InfoTile({ label, children, extra }) {
   return (
@@ -55,11 +36,11 @@ function InfoTile({ label, children, extra }) {
 }
 
 // tile in edit mode: same label and input as the login screen (field__label / field__input)
-function EditTile({ id, label, value, onChange, error, type = 'text', dir, placeholder }) {
+function EditTile({ id, label, value, onChange, error, type = 'text', dir, required = true }) {
   return (
     <div className="field itile--edit">
       <label className="field__label" htmlFor={id}>
-        {label} <span className="field__req field__req--tight">*</span>
+        {label} {required && <span className="field__req field__req--tight">*</span>}
       </label>
       <input
         id={id}
@@ -67,7 +48,6 @@ function EditTile({ id, label, value, onChange, error, type = 'text', dir, place
         type={type}
         dir={dir}
         value={value}
-        placeholder={placeholder}
         onChange={(e) => onChange(e.target.value)}
         aria-invalid={error ? true : undefined}
         aria-describedby={error ? id + '-err' : undefined}
@@ -77,52 +57,91 @@ function EditTile({ id, label, value, onChange, error, type = 'text', dir, place
   );
 }
 
-const INITIAL_INFO = {
-  name: 'د. حسام بن عبدالعزيز السويلم',
-  email: 'h.suwailem@procure.gov.sa',
-  phone: '+966 50 123 4567',
-  dept: 'الإدارة العامة للمنافسات والعقود',
-  unit: 'وحدة فحص العروض والترسية',
-};
-
 function validate(d) {
   const e = {};
   if (!d.name.trim()) e.name = 'هذا الحقل مطلوب';
   if (!d.email.trim()) e.email = 'هذا الحقل مطلوب';
   else if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(d.email.trim())) e.email = 'يرجى إدخال بريد إلكتروني صحيح';
-  if (!d.phone.trim()) e.phone = 'هذا الحقل مطلوب';
-  else if (!/^\+?[\d\s-]{7,20}$/.test(d.phone.trim())) e.phone = 'يرجى إدخال رقم هاتف صحيح';
-  if (!d.dept.trim()) e.dept = 'هذا الحقل مطلوب';
-  if (!d.unit.trim()) e.unit = 'هذا الحقل مطلوب';
   return e;
 }
 
+const STATUS_TEXT = {
+  enabled: 'نشط',
+  pending: 'نشط، بانتظار تغيير كلمة المرور المؤقتة',
+  inactive: 'نشط، لم يسجّل الدخول بعد',
+  disabled: 'معطل (لا يستطيع تسجيل الدخول)',
+};
+
 export default function UserDetail() {
+  const { id } = useParams();
   const navigate = useNavigate();
-  const [scenario, setScenario] = useState('lead');
+  const { user: me } = useAuth();
+  const [user, setUser] = useState(null);
+  const [loadError, setLoadError] = useState('');
+  const [departments, setDepartments] = useState([]);
+  const [roleInfo, setRoleInfo] = useState({}); // role id -> role from /api/roles (description, permissions)
   const [copied, setCopied] = useState(false);
-  const [info, setInfo] = useState(INITIAL_INFO);
   const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(INITIAL_INFO);
+  const [draft, setDraft] = useState(null);
   const [errors, setErrors] = useState({});
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
   const [saved, setSaved] = useState(false);
-  const [locked, setLocked] = useState(false);
   const [statusModal, setStatusModal] = useState(null); // 'deactivate' | 'activate' | null
+  const [statusBusy, setStatusBusy] = useState(false);
+  const [statusError, setStatusError] = useState('');
   const [statusMsg, setStatusMsg] = useState('');
+  const [resetOpen, setResetOpen] = useState(false);
   const infoRef = useRef(null);
 
-  function confirmStatus() {
-    // TODO: send to the API (PATCH /api/users/{id} with is_active and the reason) when connected to the backend
-    const off = statusModal === 'deactivate';
-    setLocked(off);
-    setStatusModal(null);
-    setStatusMsg(off ? 'تم تعطيل الحساب' : 'تم إعادة تفعيل الحساب');
+  const load = useCallback(async () => {
+    setLoadError('');
+    setUser(null);
+    try {
+      setUser(await fetchUser(id));
+    } catch (err) {
+      setLoadError(err instanceof ApiError && err.status === 404 ? 'هذا المستخدم غير موجود' : errorText(err));
+    }
+  }, [id]);
+
+  useEffect(() => {
+    load();
+    // lookups only make the page nicer: the page still works if they fail
+    fetchDepartments().then(setDepartments).catch(() => {});
+    fetchRoles()
+      .then((list) => setRoleInfo(Object.fromEntries(list.map((r) => [r.id, r]))))
+      .catch(() => {});
+  }, [load]);
+
+  if (loadError) {
+    return (
+      <div className="detail">
+        <h1 className="page-title">إدارة المستخدمين</h1>
+        <p className="users-msg is-err" role="alert">
+          {loadError}
+          <button type="button" onClick={() => navigate('/users')}>رجوع إلى المستخدمين</button>
+        </p>
+      </div>
+    );
   }
-  const email = info.email;
+  if (!user) {
+    return (
+      <div className="detail">
+        <h1 className="page-title">إدارة المستخدمين</h1>
+        <p className="users-msg">جارٍ تحميل بيانات المستخدم...</p>
+      </div>
+    );
+  }
+
+  const status = statusOf(user);
+  const locked = !user.is_active;
+  const isMe = me?.id === user.id;
+  const roles = user.roles || [];
 
   function startEdit() {
-    setDraft(info);
+    setDraft({ name: user.name, email: user.email, department_id: user.department?.id ? String(user.department.id) : '' });
     setErrors({});
+    setSaveError('');
     setSaved(false);
     setEditing(true);
     requestAnimationFrame(() => {
@@ -131,22 +150,68 @@ export default function UserDetail() {
     });
   }
 
-  function cancelEdit() {
-    setEditing(false);
-    setErrors({});
-  }
-
-  function saveEdit() {
+  async function saveEdit() {
     const e = validate(draft);
     setErrors(e);
     if (Object.keys(e).length) {
       infoRef.current?.querySelector('[aria-invalid="true"]')?.focus();
       return;
     }
-    // TODO: send to the API (PATCH /api/users/{id}) when the page is connected to the backend
-    setInfo({ ...draft, name: draft.name.trim(), email: draft.email.trim(), phone: draft.phone.trim(), dept: draft.dept.trim(), unit: draft.unit.trim() });
-    setEditing(false);
-    setSaved(true);
+    // send only what changed
+    const body = {};
+    if (draft.name.trim() !== user.name) body.name = draft.name.trim();
+    if (draft.email.trim() !== user.email) body.email = draft.email.trim();
+    const dept = draft.department_id ? Number(draft.department_id) : null;
+    if (dept !== (user.department?.id ?? null)) body.department_id = dept;
+    if (!Object.keys(body).length) {
+      setEditing(false);
+      return;
+    }
+    setSaving(true);
+    setSaveError('');
+    try {
+      setUser(await api(`/users/${user.id}`, { method: 'PATCH', body }));
+      setEditing(false);
+      setSaved(true);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 422 && err.body?.errors) {
+        const f = err.body.errors;
+        setErrors({
+          name: f.name && 'يرجى إدخال اسم صحيح',
+          email: f.email && (/taken|مستخدم/.test(String(f.email)) ? 'هذا البريد مستخدم في حساب آخر' : 'يرجى إدخال بريد إلكتروني صحيح'),
+        });
+        if (f.department_id) setSaveError('الإدارة المختارة غير موجودة');
+      } else {
+        setSaveError(actionError(err));
+      }
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function confirmStatus() {
+    const off = statusModal === 'deactivate';
+    setStatusBusy(true);
+    setStatusError('');
+    try {
+      setUser(await api(`/users/${user.id}/${off ? 'deactivate' : 'activate'}`, { method: 'POST' }));
+      setStatusModal(null);
+      setStatusMsg(off ? 'تم تعطيل الحساب' : 'تم إعادة تفعيل الحساب');
+    } catch (err) {
+      setStatusError(actionError(err));
+    } finally {
+      setStatusBusy(false);
+    }
+  }
+
+  async function resetPassword() {
+    try {
+      const res = await api(`/users/${user.id}/reset-password`, { method: 'POST' });
+      setUser((u) => ({ ...u, must_change_password: true }));
+      return res.temporary_password;
+    } catch (err) {
+      throw new Error(actionError(err));
+    }
   }
 
   const setField = (k) => (v) => {
@@ -156,8 +221,8 @@ export default function UserDetail() {
 
   function copyEmail() {
     try {
-      navigator.clipboard?.writeText(email);
-    } catch (e) {
+      navigator.clipboard?.writeText(user.email);
+    } catch {
       /* clipboard may be unavailable */
     }
     setCopied(true);
@@ -173,24 +238,26 @@ export default function UserDetail() {
         {/* profile card (right in RTL) */}
         <section className="dcard profile">
           <div className="profile__main">
-            <span className="profile__avatar">د.ح</span>
+            <span className="profile__avatar">{initials(user.name)}</span>
             <div className="profile__info">
               <div className="profile__row">
-                <span className="pill pill--id">EMP-04821</span>
+                <span className="pill pill--id" dir="ltr">#{user.id}</span>
               </div>
-              <h2>{info.name}</h2>
+              <h2>{user.name}</h2>
               <p className="profile__meta">
                 <BuildingIcon size={18} />
-                {info.dept}
+                {user.department?.name || 'بدون إدارة'}
               </p>
               <p className="profile__meta">
                 <CalendarIcon size={18} />
-                تاريخ الانضمام: 01 اكتوبر 2026 (منذ أقل من شهر)
+                تاريخ الانضمام: {longDate(user.created_at)}
               </p>
-              <p className="profile__meta profile__meta--ok">
-                <VerifiedIcon size={18} />
-                مصادقة الهوية عبر النفاذ الوطني الموحد (IAM)
-              </p>
+              {user.last_login_at && (
+                <p className="profile__meta profile__meta--ok">
+                  <VerifiedIcon size={18} />
+                  آخر دخول: {lastSeen(user.last_login_at)}
+                </p>
+              )}
             </div>
           </div>
           <div className="profile__side">
@@ -201,54 +268,48 @@ export default function UserDetail() {
                   حساب معطل
                 </span>
               ) : (
-                <span className="status st-active st-active--soft">
+                <span className={'status ' + STATUS[status].cls + (status === 'enabled' ? ' st-active--soft' : '')}>
                   <i className="status__dot" />
-                  حساب نشط وموثق
+                  {STATUS[status].label}
                 </span>
               )}
-              <KebabMenu placement="above" />
+              <KebabMenu id={user.id} placement="above" onResetPassword={isMe ? undefined : () => setResetOpen(true)} />
             </div>
             <div className="profile__actions">
-              <button type="button" className="act act--edit act--lg" aria-label="تعديل" onClick={startEdit}>
+              <button type="button" className="act act--edit act--lg" aria-label="تعديل" title="تعديل البيانات" onClick={startEdit}>
                 <PencilIcon size={22} />
               </button>
-              {locked ? (
-                <button type="button" className="act act--unlock act--lg" aria-label="إعادة تفعيل الحساب" title="إعادة تفعيل الحساب" onClick={() => setStatusModal('activate')}>
-                  <LockOpenIcon size={22} />
-                </button>
-              ) : (
-                <button type="button" className="act act--lock act--lg" aria-label="تعطيل الحساب" title="تعطيل الحساب" onClick={() => setStatusModal('deactivate')}>
-                  <LockIcon size={22} />
-                </button>
-              )}
+              {!isMe &&
+                (locked ? (
+                  <button type="button" className="act act--unlock act--lg" aria-label="إعادة تفعيل الحساب" title="إعادة تفعيل الحساب" onClick={() => { setStatusError(''); setStatusModal('activate'); }}>
+                    <LockOpenIcon size={22} />
+                  </button>
+                ) : (
+                  <button type="button" className="act act--lock act--lg" aria-label="تعطيل الحساب" title="تعطيل الحساب" onClick={() => { setStatusError(''); setStatusModal('deactivate'); }}>
+                    <LockIcon size={22} />
+                  </button>
+                ))}
             </div>
             {statusMsg && <small className="profile__status-msg" role="status">{statusMsg}</small>}
           </div>
         </section>
 
-        {/* sandbox (left) */}
+        {/* account summary (left) */}
         <section className="dcard sandbox">
           <div className="sandbox__head">
             <span className="sandbox__icon">
               <SlidersIcon size={22} />
             </span>
             <div>
-              <h3>محاكي حالات المستخدم <bdi dir="ltr">(Audit &amp; Governance Sandbox)</bdi></h3>
-              <p>تنقل بين السيناريوهات الإدارية لمراجعة الحساب والصلاحيات الرقابية</p>
+              <h3>ملخص الحساب</h3>
+              <p>{isMe ? 'هذا حسابك أنت: لا يمكنك تعطيله أو تعديل أدواره بنفسك' : 'نظرة سريعة على حالة الحساب ونشاطه'}</p>
             </div>
           </div>
           <div className="sandbox__chips">
-            {SCENARIOS.map((s) => (
-              <button
-                key={s.key}
-                type="button"
-                className={'schip' + (scenario === s.key ? ' is-on' : '')}
-                onClick={() => setScenario(s.key)}
-              >
-                <i style={{ background: s.dot }} />
-                {s.label}
-              </button>
-            ))}
+            <span className="schip"><i style={{ background: locked ? '#e53030' : '#1a8cff' }} />{locked ? 'الحساب معطل' : 'الحساب نشط'}</span>
+            <span className="schip"><i style={{ background: '#1a8cff' }} />{roles.length} {roles.length === 1 ? 'دور' : 'أدوار'}</span>
+            <span className="schip"><i style={{ background: user.last_login_at ? '#1a8cff' : '#555' }} />{user.last_login_at ? 'سجّل الدخول من قبل' : 'لم يسجّل الدخول بعد'}</span>
+            {user.must_change_password && <span className="schip"><i style={{ background: '#f0a020' }} />كلمة مرور مؤقتة</span>}
           </div>
         </section>
       </div>
@@ -258,67 +319,60 @@ export default function UserDetail() {
           <div className="dcard__head">
             <h3>
               <IdCardIcon size={26} className="dcard__head-icon" />
-              المعلومات الوظيفية والأساسية
+              المعلومات الأساسية
             </h3>
             {editing ? (
               <div className="info__edit-actions">
-                <button type="button" className="btn-outline info__btn" onClick={cancelEdit}>إلغاء</button>
-                <button type="button" className="btn-primary info__btn" onClick={saveEdit}>حفظ التعديلات</button>
+                <button type="button" className="btn-outline info__btn" onClick={() => setEditing(false)} disabled={saving}>إلغاء</button>
+                <button type="button" className="btn-primary info__btn" onClick={saveEdit} disabled={saving}>
+                  {saving ? 'جارٍ الحفظ...' : 'حفظ التعديلات'}
+                </button>
               </div>
             ) : (
-              <span className="soft-pill">سجل مركزي موثق</span>
+              <span className="soft-pill">بيانات الحساب</span>
             )}
           </div>
           {editing ? (
             <div className="info__grid">
               <EditTile id="ud-name" label="الاسم الكامل" value={draft.name} onChange={setField('name')} error={errors.name} />
-              <EditTile id="ud-email" label="البريد الإلكتروني الحكومي" type="email" dir="ltr" value={draft.email} onChange={setField('email')} error={errors.email} />
+              <EditTile id="ud-email" label="البريد الإلكتروني" type="email" dir="ltr" value={draft.email} onChange={setField('email')} error={errors.email} />
               <div className="field itile--edit">
-                <label className="field__label" htmlFor="ud-empid">الرقم الوظيفي</label>
-                <input id="ud-empid" className="field__input field__input--locked" dir="ltr" value="EMP-04821" disabled aria-describedby="ud-empid-hint" />
-                <small className="itile__hint" id="ud-empid-hint">يُدار من الموارد البشرية</small>
+                <label className="field__label" htmlFor="ud-dept">الإدارة / القسم</label>
+                <select id="ud-dept" className="field__input" value={draft.department_id} onChange={(e) => setField('department_id')(e.target.value)}>
+                  <option value="">بدون إدارة</option>
+                  {departments.map((d) => (
+                    <option key={d.id} value={d.id}>{d.name}</option>
+                  ))}
+                </select>
               </div>
-              <EditTile id="ud-phone" label="رقم الهاتف المحمول" type="tel" dir="ltr" value={draft.phone} onChange={setField('phone')} error={errors.phone} />
-              <EditTile id="ud-dept" label="الإدارة / القسم" value={draft.dept} onChange={setField('dept')} error={errors.dept} />
-              <EditTile id="ud-unit" label="الوحدة التنظيمية الفرعية" value={draft.unit} onChange={setField('unit')} error={errors.unit} />
+              <div className="field itile--edit">
+                <label className="field__label" htmlFor="ud-id">رقم المستخدم</label>
+                <input id="ud-id" className="field__input field__input--locked" dir="ltr" value={'#' + user.id} disabled aria-describedby="ud-id-hint" />
+                <small className="itile__hint" id="ud-id-hint">يُنشأ تلقائياً ولا يمكن تعديله</small>
+              </div>
             </div>
           ) : (
-          <div className="info__grid">
-            <InfoTile label="الاسم الكامل">{info.name}</InfoTile>
-            <InfoTile
-              label="البريد الإلكتروني الحكومي"
-              extra={
-                <button type="button" className="icon-btn" onClick={copyEmail} aria-label="نسخ البريد">
-                  {copied ? <ShieldCheckIcon size={18} /> : <CopyIcon size={18} />}
-                </button>
-              }
-            >
-              <span dir="ltr">{info.email}</span>
-            </InfoTile>
-            <InfoTile label="الرقم الوظيفي" extra={<span className="tag tag--hr">مفعل في HR</span>}>
-              <span className="pill pill--id" dir="ltr">EMP-04821</span>
-            </InfoTile>
-            <InfoTile
-              label="رقم الهاتف المحمول"
-              extra={
-                <span className="tag tag--small">
-                  <VerifiedIcon size={11} />
-                  موثق نفاذ
-                </span>
-              }
-            >
-              <span dir="ltr">{info.phone}</span>
-            </InfoTile>
-            <InfoTile label="الإدارة / القسم">{info.dept}</InfoTile>
-            <InfoTile label="الوحدة التنظيمية الفرعية">{info.unit}</InfoTile>
-          </div>
+            <div className="info__grid">
+              <InfoTile label="الاسم الكامل">{user.name}</InfoTile>
+              <InfoTile
+                label="البريد الإلكتروني"
+                extra={
+                  <button type="button" className="icon-btn" onClick={copyEmail} aria-label="نسخ البريد">
+                    {copied ? <ShieldCheckIcon size={18} /> : <CopyIcon size={18} />}
+                  </button>
+                }
+              >
+                <span dir="ltr">{user.email}</span>
+              </InfoTile>
+              <InfoTile label="الإدارة / القسم">{user.department?.name || '—'}</InfoTile>
+              <InfoTile label="رقم المستخدم">
+                <span className="pill pill--id" dir="ltr">#{user.id}</span>
+              </InfoTile>
+            </div>
           )}
           <div className="info__sync">
-            <span>
-              <SyncIcon size={18} />
-              تتم مزامنة البيانات الشخصية والوظيفية آلياً مع منصة الموارد البشرية المركزية.
-            </span>
-            {saved ? <small className="info__saved" role="status">تم حفظ التعديلات</small> : <small>تحديث: منذ ساعتين</small>}
+            {saveError ? <span className="itile__err" role="alert">{saveError}</span> : <span>تُحفظ التعديلات مباشرة وتُسجَّل في سجل التدقيق.</span>}
+            {saved ? <small className="info__saved" role="status">تم حفظ التعديلات</small> : <small>آخر تحديث: {dateTime(user.updated_at)}</small>}
           </div>
         </section>
 
@@ -328,53 +382,32 @@ export default function UserDetail() {
               <ShieldCheckIcon size={26} className="dcard__head-icon" />
               بيانات الحساب والأمان
             </h3>
-            <span className="tag tag--ok">
-              <i />
-              متوافق مع ضوابط NCA
-            </span>
           </div>
           <dl className="account__list">
             <div>
               <dt>حالة الحساب</dt>
-              <dd className="is-ok">
-                <i /> نشط (معتمد وموثق عبر IAM)
+              <dd className={locked ? 'plain' : 'is-ok'}>
+                {!locked && <i />} {STATUS_TEXT[status]}
               </dd>
             </div>
             <div>
-              <dt>المصادقة الثنائية (2FA)</dt>
-              <dd>
-                <span className="tag tag--ok-soft">مفعلة إلزامياً (NCA-CCC)</span>
-              </dd>
+              <dt>كلمة المرور</dt>
+              <dd className="plain">{user.must_change_password ? 'مؤقتة، يجب تغييرها عند أول دخول' : 'تم تعيينها من المستخدم'}</dd>
             </div>
             <div>
               <dt>تاريخ إنشاء الحساب</dt>
-              <dd className="plain">01 رجب 1446 هـ (09:30 ص)</dd>
-            </div>
-            <div>
-              <dt>منشئ الحساب</dt>
-              <dd className="plain">
-                <a
-                  href="/users/EMP-04821"
-                  className="auth-link"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    navigate('/users/a.almansour');
-                  }}
-                >
-                  د. عبدالله المنصور (مدير النظام)
-                </a>
-              </dd>
+              <dd className="plain">{dateTime(user.created_at)}</dd>
             </div>
             <div>
               <dt>آخر تسجيل دخول</dt>
               <dd className="plain two">
-                <span>اليوم 10:45 ص</span>
-                <small dir="ltr">IP: 10.20.14.88 (غزة)</small>
+                <span>{lastSeen(user.last_login_at)}</span>
+                {user.last_login_ip && <small dir="ltr">IP: {user.last_login_ip}</small>}
               </dd>
             </div>
             <div>
               <dt>آخر تحديث بيانات</dt>
-              <dd className="plain">أمس 02:15 م (عبر الموارد البشرية)</dd>
+              <dd className="plain">{dateTime(user.updated_at)}</dd>
             </div>
           </dl>
         </section>
@@ -387,33 +420,46 @@ export default function UserDetail() {
             الأدوار والصلاحيات المعتمدة
           </h3>
           <div className="roles__head-actions">
-            <span className="soft-pill">3 أدوار معتمدة</span>
-            <button type="button" className="btn-outline roles__edit" onClick={() => navigate('/users/EMP-04821/permissions')}>
-              تعديل الأدوار
-            </button>
+            <span className="soft-pill">{roles.length} {roles.length === 1 ? 'دور معتمد' : 'أدوار معتمدة'}</span>
+            {!isMe && (
+              <button type="button" className="btn-outline roles__edit" onClick={() => navigate(`/users/${user.id}/permissions`)}>
+                تعديل الأدوار
+              </button>
+            )}
           </div>
         </div>
         <div className="roles__grid">
-          {ROLES.map((r) => (
-            <article key={r.title} className={'urole' + (r.main ? ' urole--main' : '')}>
-              <div className="urole__head">
-                <h4>{r.title}</h4>
-                {r.main && <span className="urole__badge">الدور الرئيسي</span>}
-              </div>
-              <p>{r.text}</p>
-              <small className="urole__meta">{r.meta}</small>
-            </article>
-          ))}
+          {roles.map((r, i) => {
+            const full = roleInfo[r.id];
+            return (
+              <article key={r.id} className={'urole' + (i === 0 ? ' urole--main' : '')}>
+                <div className="urole__head">
+                  <h4>{r.label || r.name}</h4>
+                  {i === 0 && roles.length > 1 && <span className="urole__badge">الدور الرئيسي</span>}
+                </div>
+                {full?.description && <p>{full.description}</p>}
+                <small className="urole__meta">
+                  {full ? `${full.permissions.length} صلاحيات • ` : ''}
+                  <bdi dir="ltr">{r.name}</bdi>
+                </small>
+              </article>
+            );
+          })}
+          {!roles.length && <p className="uroles__empty">لا توجد أدوار لهذا المستخدم</p>}
         </div>
       </section>
       {statusModal && (
         <UserStatusModal
           mode={statusModal}
-          user={{ name: info.name, empId: 'EMP-04821', email: info.email }}
+          user={{ name: user.name, email: user.email }}
+          askReason={false}
+          busy={statusBusy}
+          error={statusError}
           onClose={() => setStatusModal(null)}
           onConfirm={confirmStatus}
         />
       )}
+      {resetOpen && <TempPasswordModal user={user} onClose={() => setResetOpen(false)} onConfirm={resetPassword} />}
     </div>
   );
 }

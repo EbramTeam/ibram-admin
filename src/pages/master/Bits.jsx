@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { PencilIcon, LockIcon, DotsVerticalIcon, SearchIcon, RefreshIcon, ChevronDownIcon, CircleXIcon } from '../../components/Icons.jsx';
 import CountUp from '../../components/CountUp.jsx';
+import { exportXlsx } from '../../lib/exportXlsx.js';
 
 export function PageHead({ title, sub, tag, inline, children }) {
   return (
@@ -108,14 +109,10 @@ export function Empty({ icon, title, text, btn, onClick }) {
   );
 }
 
-// تصدير CSV حقيقي (يفتح في Excel)
+// تصدير ملف Excel حقيقي (.xlsx): أعمدة بعرض مناسب واتجاه من اليمين لليسار
+// file names stay in English: some browsers save Arabic file names as "download"
+const FILE_NAMES = { 'الهيكل-التنظيمي': 'org-structure', 'فهرس-الأصناف': 'items', 'وحدات-القياس': 'units', 'التصنيفات': 'categories' };
 export function exportCsv(name, headers, rows) {
-  const q = (v) => '"' + String(v ?? '').replace(/"/g, '""') + '"';
-  const csv = '﻿' + [headers, ...rows].map((r) => r.map(q).join(',')).join('\r\n');
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
-  a.download = name + '.csv';
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
+  const file = `ibram-${FILE_NAMES[name] || 'export'}-${new Date().toISOString().slice(0, 10)}`;
+  return exportXlsx(file, headers, rows, { sheet: name.replace(/-/g, ' ') });
 }

@@ -1,10 +1,13 @@
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { USERS_PAGE_ROWS } from '../data.js';
 import { UsersFilters, UsersTable, useUserFilters } from '../components/UsersTable.jsx';
+import UserStatusModal from '../components/UserStatusModal.jsx';
+import TempPasswordModal from '../components/TempPasswordModal.jsx';
+import { api, errorText, ApiError } from '../lib/api.js';
+import { fetchAllUsers, fetchDepartments, fetchRoles, toRow } from '../lib/users.js';
 import { IdCardIcon, UsersIcon, HourglassIcon, BanIcon } from '../components/Icons.jsx';
 import CountUp from '../components/CountUp.jsx';
 
-const ROWS = USERS_PAGE_ROWS.map((r, i) => ({ ...r, rowKey: 'u' + i }));
 
 function Stat({ icon, tint, value, label, sub, subClass }) {
   return (
@@ -24,6 +27,64 @@ function Stat({ icon, tint, value, label, sub, subClass }) {
 export default function Users() {
   const navigate = useNavigate();
   const f = useUserFilters();
+  const [users, setUsers] = useState(null); // null = loading
+  const [roles, setRoles] = useState([]);
+  const [depts, setDepts] = useState([]);
+  const [loadError, setLoadError] = useState('');
+  const [statusFor, setStatusFor] = useState(null); // row being disabled / re-enabled
+  const [statusBusy, setStatusBusy] = useState(false);
+  const [statusError, setStatusError] = useState('');
+  const [resetFor, setResetFor] = useState(null);
+
+  const load = useCallback(async () => {
+    setLoadError('');
+    setUsers(null);
+    try {
+      const [list, r, d] = await Promise.all([fetchAllUsers(), fetchRoles(), fetchDepartments()]);
+      setUsers(list);
+      setRoles(r);
+      setDepts(d);
+    } catch (err) {
+      setLoadError(errorText(err));
+      setUsers([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    load();
+    f.setChips([]); // the design's sample filter chips do not apply to real data
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [load]);
+
+  const rows = useMemo(() => (users || []).map(toRow), [users]);
+  const count = (st) => rows.filter((r) => r.status === st).length;
+
+  async function changeStatus() {
+    const row = statusFor;
+    const off = row.status !== 'disabled';
+    setStatusBusy(true);
+    setStatusError('');
+    try {
+      const updated = await api(`/users/${row.id}/${off ? 'deactivate' : 'activate'}`, { method: 'POST' });
+      setUsers((list) => list.map((u) => (u.id === updated.id ? updated : u)));
+      setStatusFor(null);
+    } catch (err) {
+      setStatusError(err instanceof ApiError && err.status === 422 ? err.body.message : errorText(err));
+    } finally {
+      setStatusBusy(false);
+    }
+  }
+
+  async function resetPassword() {
+    try {
+      const res = await api(`/users/${resetFor.id}/reset-password`, { method: 'POST' });
+      setUsers((list) => list.map((u) => (u.id === resetFor.id ? { ...u, must_change_password: true } : u)));
+      return res.temporary_password;
+    } catch (err) {
+      throw new Error(err instanceof ApiError && err.status === 422 ? err.body.message : errorText(err));
+    }
+  }
+
   return (
     <div className="users-page">
       <div className="page-head">
@@ -45,38 +106,68 @@ export default function Users() {
         <Stat
           icon={<IdCardIcon size={26} />}
           tint={{ bg: '#e8f6ff', fg: '#0b2a4a' }}
-          value="248"
+          value={users ? rows.length : '—'}
           label="إجمالي المستخدمين"
-          sub="↑ 6+ هذا الشهر"
+          sub="كل حسابات الجهة"
           subClass="is-green"
         />
         <Stat
           icon={<UsersIcon size={26} />}
           tint={{ bg: '#eefff8', fg: '#0a5c36' }}
-          value="215"
+          value={users ? count('enabled') : '—'}
           label="المستخدمون النشطون"
-          sub="معدل النشاط اليومي 86.7%"
+          sub="سجّلوا الدخول مرة على الأقل"
           subClass="is-green"
         />
         <Stat
           icon={<HourglassIcon size={26} />}
           tint={{ bg: '#e8f6ff', fg: '#0b2a4a' }}
-          value="12"
+          value={users ? count('pending') : '—'}
           label="بانتظار التفعيل"
-          sub="دعوات معلقة"
+          sub="لم يغيّروا كلمة المرور المؤقتة"
         />
         <Stat
           icon={<BanIcon size={26} />}
           tint={{ bg: '#fff4f4', fg: '#e84a4a' }}
-          value="15"
+          value={users ? count('disabled') + count('inactive') : '—'}
           label="المقفلة وغير النشطة"
-          sub="تتطلب فحص أمني"
+          sub={users ? `${count('disabled')} معطل · ${count('inactive')} لم يدخل بعد` : ''}
           subClass="is-red"
         />
       </div>
 
-      <UsersFilters f={f} layout="stacked" />
-      <UsersTable rows={ROWS} f={f} />
+      <UsersFilters
+        f={f}
+        layout="stacked"
+        roleNames={roles.map((r) => r.label || r.name)}
+        deptNames={depts.map((d) => d.name)}
+        showChips={false}
+        statusKeys={['enabled', 'pending', 'inactive', 'disabled']}
+      />
+
+      {loadError ? (
+        <p className="users-msg is-err" role="alert">
+          {loadError}
+          <button type="button" onClick={load}>إعادة المحاولة</button>
+        </p>
+      ) : users === null ? (
+        <p className="users-msg" role="status">جارٍ تحميل المستخدمين...</p>
+      ) : (
+        <UsersTable rows={rows} f={f} pageSize={10} onLock={(r) => { setStatusError(''); setStatusFor(r); }} onResetPassword={setResetFor} />
+      )}
+
+      {statusFor && (
+        <UserStatusModal
+          mode={statusFor.status === 'disabled' ? 'activate' : 'deactivate'}
+          user={{ name: statusFor.name, email: statusFor.email }}
+          askReason={false}
+          busy={statusBusy}
+          error={statusError}
+          onClose={() => setStatusFor(null)}
+          onConfirm={changeStatus}
+        />
+      )}
+      {resetFor && <TempPasswordModal user={resetFor} onClose={() => setResetFor(null)} onConfirm={resetPassword} />}
     </div>
   );
 }
