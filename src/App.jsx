@@ -2,6 +2,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import AppLayout from './components/AppLayout.jsx';
 import { RequireAdmin } from './auth.jsx';
 import Placeholder from './components/Placeholder.jsx';
+import { Support, Privacy, CyberCompliance } from './pages/InfoPages.jsx';
 import Login from './pages/Login.jsx';
 import UserLogin from './pages/UserLogin.jsx';
 import ForgotPassword from './pages/ForgotPassword.jsx';
@@ -41,9 +42,9 @@ export default function App() {
       <Route path="/first-login-password" element={<FirstLoginPassword />} />
 
       {/* Footer pages: no design provided */}
-      <Route path="/support" element={<Placeholder standalone />} />
-      <Route path="/privacy" element={<Placeholder standalone />} />
-      <Route path="/cyber-compliance" element={<Placeholder standalone />} />
+      <Route path="/support" element={<Support />} />
+      <Route path="/privacy" element={<Privacy />} />
+      <Route path="/cyber-compliance" element={<CyberCompliance />} />
 
       {/* Admin system */}
       <Route element={<RequireAdmin><AppLayout /></RequireAdmin>}>

@@ -594,3 +594,250 @@
   font-weight: 600;
   color: #0a7cff;
 }
+
+/* ---------- public info pages: support, privacy, cyber compliance ---------- */
+.infopage .auth-hero {
+  margin-bottom: 28px;
+}
+.infocard {
+  background: #fff;
+  border-radius: 28px;
+  padding: 28px 32px;
+  margin-bottom: 20px;
+}
+.infocard__title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 18px;
+  font-size: 20px;
+  font-weight: 700;
+  color: #0a1a2e;
+}
+.infocard__icon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: #e8f6ff;
+  color: #0a7cf0;
+}
+.infolist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+.infolist li {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 16px;
+  border-radius: 16px;
+  background: #f5f7fa;
+}
+.infolist__icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: #fff;
+  color: #0a7cf0;
+}
+.infolist strong {
+  display: block;
+  font-size: 15.5px;
+  color: #0a1a2e;
+  margin-bottom: 4px;
+}
+.infolist p,
+.infobullets li,
+.faq__a {
+  margin: 0;
+  font-size: 14.5px;
+  line-height: 1.8;
+  color: #444b55;
+}
+.infobullets {
+  margin: 0;
+  padding-inline-start: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.faq {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.faq__item {
+  border-radius: 16px;
+  background: #f5f7fa;
+}
+.faq__item.is-open {
+  background: #eef7ff;
+}
+.faq__q {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 18px;
+  font-size: 15.5px;
+  font-weight: 600;
+  color: #0a1a2e;
+  text-align: start;
+}
+.faq__sign {
+  flex: none;
+  font-size: 20px;
+  color: #0a7cf0;
+}
+.faq__a {
+  padding: 0 18px 16px;
+}
+.faq__a a,
+.infopage__note a {
+  color: #0a7cf0;
+  font-weight: 600;
+}
+.infoform {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.infoform__row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+.infoform__area {
+  height: 140px;
+  padding-top: 12px;
+  resize: vertical;
+  font-family: inherit;
+}
+.infoform {
+  position: relative;
+}
+/* hidden honeypot: kept inside the form so it never widens the page (RTL) */
+.infoform__trap {
+  position: absolute;
+  inset-inline-start: 0;
+  top: 0;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  opacity: 0;
+  pointer-events: none;
+}
+.infoform .info-bar {
+  margin: 0;
+}
+.infosent {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 20px;
+  text-align: center;
+  color: #12a150;
+}
+.infosent strong {
+  font-size: 18px;
+  color: #0a1a2e;
+}
+.infosent p {
+  margin: 0 0 6px;
+  color: #444b55;
+}
+.infopage__note {
+  margin: 0 0 20px;
+  text-align: center;
+  font-size: 14.5px;
+  color: #444b55;
+}
+.infopage__back {
+  display: flex;
+  justify-content: center;
+  margin: 4px 0 8px;
+}
+.infopage__back .btn-outline--lg {
+  min-width: 280px;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+@media (max-width: 760px) {
+  .infolist,
+  .infoform__row {
+    grid-template-columns: 1fr;
+  }
+  .infocard {
+    padding: 20px;
+    border-radius: 22px;
+  }
+}
+
+/* ---------- terms of use / privacy / copyright page (plain document, like the design) ---------- */
+.auth-main:has(> .legal) {
+  align-items: flex-start;
+  background: #fff;
+}
+.legal {
+  width: 1100px;
+  max-width: 100%;
+  padding: 24px 0 16px;
+  color: #0a1a2e;
+}
+.legal__doc + .legal__doc {
+  margin-top: 40px;
+}
+.legal h1 {
+  margin: 0 0 16px;
+  font-size: 32px;
+  line-height: 1.4;
+  font-weight: 700;
+  color: #0a1a2e;
+}
+.legal h2 {
+  margin: 22px 0 10px;
+  font-size: 20px;
+  font-weight: 700;
+  color: #0a7cf0;
+}
+.legal p,
+.legal li {
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.75;
+  color: #1c2633;
+}
+.legal ul {
+  margin: 4px 0 0;
+  padding-inline-start: 22px;
+}
+.legal__line + .legal__line {
+  margin-top: 2px;
+}
+.legal .infopage__back {
+  margin-top: 40px;
+}
+@media (max-width: 760px) {
+  .legal h1 {
+    font-size: 26px;
+  }
+  .legal h2 {
+    font-size: 18px;
+  }
+}
