@@ -36,7 +36,7 @@ function InfoTile({ label, children, extra }) {
 }
 
 // tile in edit mode: same label and input as the login screen (field__label / field__input)
-function EditTile({ id, label, value, onChange, error, type = 'text', dir, required = true }) {
+function EditTile({ id, label, value, onChange, error, type = 'text', dir, required = true, max }) {
   return (
     <div className="field itile--edit">
       <label className="field__label" htmlFor={id}>
@@ -48,6 +48,7 @@ function EditTile({ id, label, value, onChange, error, type = 'text', dir, requi
         type={type}
         dir={dir}
         value={value}
+        max={max}
         onChange={(e) => onChange(e.target.value)}
         aria-invalid={error ? true : undefined}
         aria-describedby={error ? id + '-err' : undefined}
@@ -62,6 +63,8 @@ function validate(d) {
   if (!d.name.trim()) e.name = 'هذا الحقل مطلوب';
   if (!d.email.trim()) e.email = 'هذا الحقل مطلوب';
   else if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(d.email.trim())) e.email = 'يرجى إدخال بريد إلكتروني صحيح';
+  if (d.phone.trim() && !/^\+?[0-9][0-9\s-]{6,28}$/.test(d.phone.trim())) e.phone = 'يرجى إدخال رقم جوال صحيح';
+  if (d.joined_at && d.joined_at > new Date().toISOString().slice(0, 10)) e.joined_at = 'تاريخ الانضمام لا يكون في المستقبل';
   return e;
 }
 
@@ -139,7 +142,16 @@ export default function UserDetail() {
   const roles = user.roles || [];
 
   function startEdit() {
-    setDraft({ name: user.name, email: user.email, department_id: user.department?.id ? String(user.department.id) : '' });
+    setDraft({
+      name: user.name,
+      email: user.email,
+      employee_number: user.employee_number || '',
+      phone: user.phone || '',
+      job_title: user.job_title || '',
+      department_id: user.department?.id ? String(user.department.id) : '',
+      sub_unit: user.sub_unit || '',
+      joined_at: user.joined_at || '',
+    });
     setErrors({});
     setSaveError('');
     setSaved(false);
@@ -161,6 +173,11 @@ export default function UserDetail() {
     const body = {};
     if (draft.name.trim() !== user.name) body.name = draft.name.trim();
     if (draft.email.trim() !== user.email) body.email = draft.email.trim();
+    for (const k of ['employee_number', 'phone', 'job_title', 'sub_unit']) {
+      const v = draft[k].trim() || null;
+      if (v !== (user[k] || null)) body[k] = v;
+    }
+    if ((draft.joined_at || null) !== (user.joined_at || null)) body.joined_at = draft.joined_at || null;
     const dept = draft.department_id ? Number(draft.department_id) : null;
     if (dept !== (user.department?.id ?? null)) body.department_id = dept;
     if (!Object.keys(body).length) {
@@ -179,6 +196,11 @@ export default function UserDetail() {
         setErrors({
           name: f.name && 'يرجى إدخال اسم صحيح',
           email: f.email && (/taken|مستخدم/.test(String(f.email)) ? 'هذا البريد مستخدم في حساب آخر' : 'يرجى إدخال بريد إلكتروني صحيح'),
+          employee_number: f.employee_number && (/taken|مستخدم/.test(String(f.employee_number)) ? 'هذا الرقم الوظيفي مستخدم لموظف آخر' : 'يرجى إدخال رقم وظيفي صحيح'),
+          phone: f.phone && 'يرجى إدخال رقم جوال صحيح',
+          job_title: f.job_title && 'يرجى إدخال مسمى وظيفي صحيح',
+          sub_unit: f.sub_unit && 'يرجى إدخال وحدة صحيحة',
+          joined_at: f.joined_at && 'يرجى إدخال تاريخ انضمام صحيح',
         });
         if (f.department_id) setSaveError('الإدارة المختارة غير موجودة');
       } else {
@@ -241,16 +263,17 @@ export default function UserDetail() {
             <span className="profile__avatar">{initials(user.name)}</span>
             <div className="profile__info">
               <div className="profile__row">
-                <span className="pill pill--id" dir="ltr">#{user.id}</span>
+                <span className="pill pill--id" dir="ltr">{user.employee_number || '#' + user.id}</span>
               </div>
               <h2>{user.name}</h2>
               <p className="profile__meta">
                 <BuildingIcon size={18} />
                 {user.department?.name || 'بدون إدارة'}
+                {user.job_title && ` · ${user.job_title}`}
               </p>
               <p className="profile__meta">
                 <CalendarIcon size={18} />
-                تاريخ الانضمام: {longDate(user.created_at)}
+                تاريخ الانضمام: {longDate(user.joined_at || user.created_at)}
               </p>
               {user.last_login_at && (
                 <p className="profile__meta profile__meta--ok">
@@ -336,6 +359,8 @@ export default function UserDetail() {
             <div className="info__grid">
               <EditTile id="ud-name" label="الاسم الكامل" value={draft.name} onChange={setField('name')} error={errors.name} />
               <EditTile id="ud-email" label="البريد الإلكتروني" type="email" dir="ltr" value={draft.email} onChange={setField('email')} error={errors.email} />
+              <EditTile id="ud-emp" label="الرقم الوظيفي" dir="ltr" required={false} value={draft.employee_number} onChange={setField('employee_number')} error={errors.employee_number} />
+              <EditTile id="ud-phone" label="رقم الهاتف المحمول" type="tel" dir="ltr" required={false} value={draft.phone} onChange={setField('phone')} error={errors.phone} />
               <div className="field itile--edit">
                 <label className="field__label" htmlFor="ud-dept">الإدارة / القسم</label>
                 <select id="ud-dept" className="field__input" value={draft.department_id} onChange={(e) => setField('department_id')(e.target.value)}>
@@ -345,11 +370,9 @@ export default function UserDetail() {
                   ))}
                 </select>
               </div>
-              <div className="field itile--edit">
-                <label className="field__label" htmlFor="ud-id">رقم المستخدم</label>
-                <input id="ud-id" className="field__input field__input--locked" dir="ltr" value={'#' + user.id} disabled aria-describedby="ud-id-hint" />
-                <small className="itile__hint" id="ud-id-hint">يُنشأ تلقائياً ولا يمكن تعديله</small>
-              </div>
+              <EditTile id="ud-unit" label="الوحدة التنظيمية الفرعية" required={false} value={draft.sub_unit} onChange={setField('sub_unit')} error={errors.sub_unit} />
+              <EditTile id="ud-title" label="المسمى الوظيفي" required={false} value={draft.job_title} onChange={setField('job_title')} error={errors.job_title} />
+              <EditTile id="ud-joined" label="تاريخ الانضمام" type="date" required={false} max={new Date().toISOString().slice(0, 10)} value={draft.joined_at} onChange={setField('joined_at')} error={errors.joined_at} />
             </div>
           ) : (
             <div className="info__grid">
@@ -364,10 +387,14 @@ export default function UserDetail() {
               >
                 <span dir="ltr">{user.email}</span>
               </InfoTile>
-              <InfoTile label="الإدارة / القسم">{user.department?.name || '—'}</InfoTile>
-              <InfoTile label="رقم المستخدم">
-                <span className="pill pill--id" dir="ltr">#{user.id}</span>
+              <InfoTile label="الرقم الوظيفي">
+                {user.employee_number ? <span className="pill pill--id" dir="ltr">{user.employee_number}</span> : '—'}
               </InfoTile>
+              <InfoTile label="رقم الهاتف المحمول">{user.phone ? <span dir="ltr">{user.phone}</span> : '—'}</InfoTile>
+              <InfoTile label="الإدارة / القسم">{user.department?.name || '—'}</InfoTile>
+              <InfoTile label="الوحدة التنظيمية الفرعية">{user.sub_unit || '—'}</InfoTile>
+              <InfoTile label="المسمى الوظيفي">{user.job_title || '—'}</InfoTile>
+              <InfoTile label="تاريخ الانضمام">{user.joined_at ? longDate(user.joined_at) : '—'}</InfoTile>
             </div>
           )}
           <div className="info__sync">

@@ -26,7 +26,18 @@ const DETAIL_LABELS = {
   role: 'الدور',
   roles: 'الأدوار',
 };
-const FIELD_LABELS = { phone: 'رقم الجوال', department_id: 'الإدارة', email: 'البريد', name: 'الاسم', logo: 'الشعار', currency: 'العملة' };
+const FIELD_LABELS = {
+  phone: 'رقم الجوال',
+  department_id: 'الإدارة',
+  email: 'البريد',
+  name: 'الاسم',
+  logo: 'الشعار',
+  currency: 'العملة',
+  employee_number: 'الرقم الوظيفي',
+  job_title: 'المسمى الوظيفي',
+  sub_unit: 'الوحدة الفرعية',
+  joined_at: 'تاريخ الانضمام',
+};
 
 // numbers only, so it reads the same in Arabic and English
 function fmtDate(iso) {

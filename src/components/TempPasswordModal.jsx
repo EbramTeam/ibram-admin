@@ -3,10 +3,10 @@ import { CloseCircleIcon, KeyLockIcon, CopyIcon } from './Icons.jsx';
 
 // Reset a user's password (POST /api/users/{id}/reset-password).
 // The server answers with a temporary password that is shown ONCE here.
-export default function TempPasswordModal({ user, onClose, onConfirm }) {
+export default function TempPasswordModal({ user, onClose, onConfirm, password: given = '', title = 'إعادة تعيين كلمة المرور' }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const [password, setPassword] = useState('');
+  const [password, setPassword] = useState(given);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -43,7 +43,7 @@ export default function TempPasswordModal({ user, onClose, onConfirm }) {
           <div className="vmodal__titlebox">
             <span className="vmodal__icon is-red"><KeyLockIcon size={24} /></span>
             <div>
-              <h2 id="tpm-title">إعادة تعيين كلمة المرور</h2>
+              <h2 id="tpm-title">{title}</h2>
               <p>{user.name} · <bdi dir="ltr">{user.email}</bdi></p>
             </div>
           </div>

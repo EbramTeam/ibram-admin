@@ -207,7 +207,7 @@ export function UsersTable({ rows: initialRows, f, onLock, onResetPassword, page
   const visible = useMemo(() => {
     const q = f.q.trim().toLowerCase();
     return rows.filter((r) => {
-      if (q && !(r.name + r.handle + r.email).toLowerCase().includes(q)) return false;
+      if (q && !(r.name + r.handle + r.email + (r.empId || '')).toLowerCase().includes(q)) return false;
       if (f.role && !(r.roles || [r.role]).includes(f.role)) return false;
       if (f.dept && r.dept !== f.dept) return false;
       if (f.status && r.status !== f.status) return false;
