@@ -616,6 +616,7 @@
 .audit__tag--purple { background: #efeefe; color: #3b3fd8; }
 .audit__tag--green { background: #eefff8; color: #0a5c36; }
 .audit__tag--amber { background: #fff7e6; color: #8a5300; }
+.audit__tag--gray { background: #f1f3f6; color: #3d4656; }
 .audit__details {
   display: flex;
   flex-direction: column;
@@ -769,3 +770,8 @@
 .utable__row > .utable__handle {
   text-align: center;
 }
+
+/* audit log: loading and paging */
+.audit__table.is-loading .audit__row { opacity: 0.55; transition: opacity 0.15s; }
+.audit__retry { border: 0; background: none; color: #1a8cff; font: inherit; font-weight: 700; cursor: pointer; text-decoration: underline; }
+.pager__gap { align-self: center; padding: 0 4px; color: #8a94a6; }
