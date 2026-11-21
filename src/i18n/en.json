@@ -1541,5 +1541,22 @@
 "رسائل التواصل": "Contact messages",
 "إرجاع للتعديل": "Return for changes",
 "من حالة": "From status",
-"إلى حالة": "To status"
+"إلى حالة": "To status",
+"صلاحيات معتمدة ·": "approved permissions ·",
+"مستخدمين": "users",
+"دور مدير النظام يملك كل الصلاحيات ولا يمكن تعديله من هنا": "The system administrator role has every permission and cannot be edited here",
+"مستخدم يحمل": "user has",
+"مستخدمين يحملون": "users have",
+"هذا الدور · معاينة وتعديل مصفوفة الصلاحيات": "this role · review and edit the permission matrix",
+"إلغاء تحديد الكل": "Clear all",
+"تراجع عن التغييرات": "Undo changes",
+"تم حفظ صلاحيات الدور، وتُطبَّق فوراً على كل من يحمله": "Role permissions saved; they apply right away to everyone with this role",
+"نوع الدور : قابل للتعديل": "Role type: editable",
+"نوع الدور : مقفل": "Role type: locked",
+"المستخدمون المعينون على الأدوار": "Users assigned to roles",
+"المستخدم الواحد قد يحمل أكثر من دور": "One user can have more than one role",
+"أدوار بدون مستخدمين": "Roles without users",
+"لا يحملها أي مستخدم حالياً": "No user has them right now",
+"كل الأدوار مستخدمة": "Every role is in use",
+"قابلة للتعديل ·": "editable ·"
 }

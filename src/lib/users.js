@@ -13,6 +13,10 @@ export async function fetchAllUsers() {
   return all;
 }
 
+export async function fetchPermissions() {
+  return (await api('/permissions')).data;
+}
+
 export async function fetchRoles() {
   return (await api('/roles')).data;
 }
@@ -102,16 +106,27 @@ const PERM_GROUPS = [
   { id: 'admin', title: 'إدارة المنظومة', icon: 'admin', prefixes: ['users', 'settings'] },
 ];
 
+// group permissions ({id, name, label}) by area; "checked" marks the ones in checkedIds
+export function groupPermissions(list, checkedIds = null) {
+  const groups = PERM_GROUPS.map((g) => ({ ...g, items: [] }));
+  const other = { id: 'other', title: 'صلاحيات أخرى', icon: 'settings', items: [] };
+  list.forEach((p) => {
+    const prefix = p.name.split('.')[0];
+    (groups.find((g) => g.prefixes.includes(prefix)) || other).items.push({
+      id: p.id ?? p.name,
+      key: p.name,
+      name: p.label || p.name,
+      desc: p.name,
+      checked: checkedIds ? checkedIds.has(p.id) : true,
+    });
+  });
+  return [...groups, other].filter((g) => g.items.length);
+}
+
 // the permissions of a list of roles (from GET /api/roles), grouped, without duplicates
 export function permissionGroups(roles) {
   const seen = new Map();
   roles.forEach((r) => (r.permissions || []).forEach((p) => seen.set(p.name, p)));
-  const groups = PERM_GROUPS.map((g) => ({ ...g, items: [] }));
-  const other = { id: 'other', title: 'صلاحيات أخرى', icon: 'settings', items: [] };
-  seen.forEach((p) => {
-    const prefix = p.name.split('.')[0];
-    (groups.find((g) => g.prefixes.includes(prefix)) || other).items.push({ id: p.name, name: p.label || p.name, desc: p.name });
-  });
-  return [...groups, other].filter((g) => g.items.length);
+  return groupPermissions([...seen.values()]);
 }
 export const countPermissions = (groups) => groups.reduce((s, g) => s + g.items.length, 0);
