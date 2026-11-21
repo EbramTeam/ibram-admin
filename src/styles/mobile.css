@@ -365,3 +365,50 @@
     width: 100%;
   }
 }
+
+/* ----- users table: a wider name column, one-line cells, and every column centred under its heading ----- */
+.utable {
+  --cols: 56px minmax(250px, 2.4fr) minmax(150px, 1.5fr) minmax(110px, 1fr) minmax(130px, 1.2fr) minmax(100px, 0.9fr) minmax(140px, 1.2fr) 150px;
+}
+.utable__row {
+  min-height: 84px;
+}
+.utable__head > span:nth-child(n + 3),
+.utable__row > span:nth-child(n + 3) {
+  text-align: center;
+}
+.utable .dept,
+.utable .last {
+  align-items: center;
+  gap: 4px;
+}
+.utable .acts {
+  justify-content: center;
+  gap: 10px;
+}
+.utable .uid__text strong {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.utable .uid__verified {
+  vertical-align: -3px;
+  margin-inline-end: 6px;
+}
+.utable .uid__text small {
+  word-break: normal;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.utable .pill--role,
+.utable .pill--handle {
+  max-width: 100%;
+  padding: 8px 14px;
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+}

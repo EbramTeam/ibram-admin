@@ -264,11 +264,11 @@ export function UsersTable({ rows: initialRows, f, onLock, onResetPassword, page
           <Link to={`/users/${r.id ?? DETAIL_USER_ID}`} className="uid">
             <span className={'avatar avatar--' + r.avatar}>{r.initials}</span>
             <span className="uid__text">
-              <strong>
+              <strong title={r.name}>
                 {r.verified && <VerifiedIcon size={16} className="uid__verified" />}
                 {r.name}
               </strong>
-              <small>{r.email}</small>
+              <small title={r.email}>{r.email}</small>
             </span>
           </Link>
           <span className="utable__handle">
@@ -279,7 +279,7 @@ export function UsersTable({ rows: initialRows, f, onLock, onResetPassword, page
             <small>{r.unit}</small>
           </span>
           <span>
-            <span className="pill pill--role">{r.role}</span>
+            <span className="pill pill--role" title={r.roles?.length > 1 ? r.roles.join('، ') : r.role}>{r.role}</span>
           </span>
           <span>
             <StatusPill status={r.status} />

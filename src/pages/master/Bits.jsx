@@ -71,8 +71,11 @@ export const StatusPill = ({ s, now }) => (
   <span className={'mst' + (s === 'active' ? '' : ' is-off')}><i />{s === 'active' ? (now ? 'نشط الآن' : 'نشط') : 'غير نشط'}</span>
 );
 
-export function RowActions({ onEdit, onLock, onView, onDelete }) {
+// lock button: disable / reactivate. Delete is in the menu only when the record can be deleted.
+// The menu opens upward near the bottom of the table so it is not cut off.
+export function RowActions({ onEdit, onLock, onView, onDelete, off = false }) {
   const [open, setOpen] = useState(false);
+  const [up, setUp] = useState(false);
   const ref = useRef(null);
   useEffect(() => {
     if (!open) return;
@@ -83,14 +86,27 @@ export function RowActions({ onEdit, onLock, onView, onDelete }) {
   return (
     <div className="mact" ref={ref} onClick={(e) => e.stopPropagation()}>
       <button type="button" className="mact__edit" aria-label="تعديل" onClick={onEdit}><PencilIcon size={18} /></button>
-      <button type="button" className="mact__lock" aria-label="تعطيل" onClick={onLock}><LockIcon size={18} /></button>
+      <button type="button" className="mact__lock" aria-label={off ? 'إعادة تفعيل' : 'تعطيل'} title={off ? 'إعادة تفعيل' : 'تعطيل'} onClick={onLock}><LockIcon size={18} /></button>
       <span className="vkebab">
-        <button type="button" aria-label="الإجراءات" onClick={() => setOpen((o) => !o)}><DotsVerticalIcon size={20} /></button>
+        <button
+          type="button"
+          aria-label="الإجراءات"
+          aria-expanded={open}
+          onClick={(e) => {
+            const btn = e.currentTarget.getBoundingClientRect();
+            const box = e.currentTarget.closest('.vtable, .mtable2')?.getBoundingClientRect();
+            setUp(Math.min(window.innerHeight, box ? box.bottom : window.innerHeight) - btn.bottom < 130);
+            setOpen((o) => !o);
+          }}
+        >
+          <DotsVerticalIcon size={20} />
+        </button>
         {open && (
-          <div className="vkebab__menu">
+          <div className={'vkebab__menu' + (up ? ' is-up' : '')}>
             <button type="button" onClick={() => { setOpen(false); onView(); }}>عرض التفاصيل</button>
             <button type="button" onClick={() => { setOpen(false); onEdit(); }}>تعديل</button>
-            <button type="button" onClick={() => { setOpen(false); onDelete(); }}>حذف</button>
+            <button type="button" onClick={() => { setOpen(false); onLock(); }}>{off ? 'إعادة تفعيل' : 'تعطيل'}</button>
+            {onDelete && <button type="button" onClick={() => { setOpen(false); onDelete(); }}>حذف</button>}
           </div>
         )}
       </span>
