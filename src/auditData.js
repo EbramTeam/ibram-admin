@@ -100,3 +100,10 @@ export function matchesGroup(event, group) {
 export function groupOf(event) {
   return EVENT_GROUPS.find((g) => matchesGroup(event, g.value)) || { label: 'أخرى', tone: 'gray' };
 }
+
+// "مورد: شركة الأمل" (the server sends subject_name); just the type when there is no name
+export function subjectLabel(r) {
+  if (!r.subject_type) return '';
+  const type = SUBJECT_LABELS[r.subject_type] || r.subject_type;
+  return r.subject_name ? `${type}: ${r.subject_name}` : type;
+}

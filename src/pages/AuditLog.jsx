@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import CountUp from '../components/CountUp.jsx';
 import { exportXlsx } from '../lib/exportXlsx.js';
 import { SearchIcon, RefreshIcon, ChevronDownIcon, LogsIcon, ShieldLockIcon, WarnIcon, RolesIcon, ExportIcon } from '../components/Icons.jsx';
-import { EVENT_GROUPS, SUBJECT_LABELS, eventLabel, groupOf } from '../auditData.js';
+import { EVENT_GROUPS, eventLabel, groupOf, subjectLabel } from '../auditData.js';
 import { api, errorText } from '../lib/api.js';
 import { fetchAllUsers } from '../lib/users.js';
 
@@ -74,7 +74,7 @@ function detailValue(key, v) {
 }
 const detailsText = (details) =>
   details ? Object.entries(details).map(([k, v]) => `${DETAIL_LABELS[k] || k}: ${detailValue(k, v)}`).join('  •  ') : '';
-const subjectText = (r) => (r.subject_type ? `${SUBJECT_LABELS[r.subject_type] || r.subject_type} #${r.subject_id}` : '');
+const subjectText = subjectLabel;
 
 // page numbers around the current one: 1 … 4 5 [6] 7 8 … 20
 function pageList(cur, pages) {

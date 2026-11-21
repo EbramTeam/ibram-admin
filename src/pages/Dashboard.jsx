@@ -4,7 +4,7 @@ import { UsersFilters, UsersTable, useUserFilters } from '../components/UsersTab
 import { api, errorText } from '../lib/api.js';
 import { useAuth } from '../auth.jsx';
 import { fetchAllUsers, fetchRoles, fetchDepartments, fetchPermissions, toRow, statusOf, lastSeen } from '../lib/users.js';
-import { eventLabel, groupOf, SUBJECT_LABELS } from '../auditData.js';
+import { eventLabel, groupOf, subjectLabel } from '../auditData.js';
 import {
   IdCardIcon,
   UsersIcon,
@@ -198,7 +198,7 @@ export default function Dashboard() {
             title="مستخدمون يحتاجون إلى أدوار وصلاحيات"
             text={noRoles ? `${people(noRoles)} بدون أي دور، فلا يستطيعون تنفيذ أي إجراء في المنظومة.` : 'كل المستخدمين لديهم دور واحد على الأقل.'}
           >
-            <button type="button" className="mini mini--outline" onClick={() => navigate('/roles')}>
+            <button type="button" className="mini mini--solid" onClick={() => navigate("/roles")}>
               مراجعة الأدوار والصلاحيات
             </button>
           </ActionCard>
@@ -214,7 +214,7 @@ export default function Dashboard() {
                 : 'لا توجد محاولات دخول فاشلة اليوم.'
             }
           >
-            <button type="button" className="mini mini--outline" onClick={() => navigate('/audit-log')}>
+            <button type="button" className="mini mini--solid" onClick={() => navigate("/audit-log")}>
               مراجعة سجل التدقيق
             </button>
           </ActionCard>
@@ -258,7 +258,7 @@ export default function Dashboard() {
             {activity && !activity.length && <p className="users-msg">لا توجد نشاطات مسجلة بعد</p>}
             {(activity || []).map((a) => {
               const Icon = actIcon(a.event);
-              const subject = a.subject_type ? `${SUBJECT_LABELS[a.subject_type] || a.subject_type} #${a.subject_id}` : groupOf(a.event).label;
+              const subject = a.subject_type ? subjectLabel(a) : groupOf(a.event).label;
               return (
                 <article className="act-item" key={a.id}>
                   <span className="act-item__icon">
