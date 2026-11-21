@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ACTIVITY_OPTIONS, GRADE_OPTIONS } from '../vendorsData.js';
-import { useVendors } from '../vendorsStore.jsx';
+import { errorText } from '../lib/api.js';
+import { dateTime } from '../lib/users.js';
+import { fetchAllSuppliers, crDaysLeft, verifiedOf } from '../lib/suppliers.js';
 import {
   IdCardIcon, VerifiedIcon, PauseCircleIcon, SearchIcon, RefreshIcon, ChevronDownIcon, DotsVerticalIcon,
   TrendUpIcon, CircleXIcon, CircleCheckIcon, WarnIcon, PinIcon, MailIcon, PhoneIcon, ShieldCheckIcon,
@@ -9,7 +10,7 @@ import {
 import CountUp from '../components/CountUp.jsx';
 
 const STATUS_OPTIONS = ['الكل', 'نشط', 'غير نشط / معلق'];
-const DEFAULTS = { q: '', status: 'نشط', activity: 'توريد تقني وتكنولوجيا', grade: 'الكل' };
+const DEFAULTS = { q: '', status: 'الكل', activity: 'الكل', grade: 'الكل' };
 
 function Stat({ icon, tint, value, label, pill, pillClass }) {
   return (
@@ -65,37 +66,54 @@ function RowMenu({ onOpen, onEdit }) {
 
 export default function Vendors() {
   const navigate = useNavigate();
-  const { vendors: VENDORS } = useVendors();
+  const [vendors, setVendors] = useState(null);
+  const [loadError, setLoadError] = useState('');
   const [f, setF] = useState(DEFAULTS);
-  const [touched, setTouched] = useState(false); // التصميم يعرض كل الصفوف مع الفلاتر الافتراضية؛ الفلترة تبدأ عند أول تعديل
-  const set = (k, v) => {
-    setTouched(true);
-    setF((p) => ({ ...p, [k]: v }));
-  };
+  const set = (k, v) => setF((p) => ({ ...p, [k]: v }));
   const clear = (k) => set(k, k === 'q' ? '' : 'الكل');
-  const reset = () => {
-    setTouched(false);
-    setF(DEFAULTS);
+
+  const load = () => {
+    setLoadError('');
+    fetchAllSuppliers()
+      .then(setVendors)
+      .catch((err) => setLoadError(errorText(err)));
   };
-  const clearAll = () => {
-    setTouched(true);
-    setF({ q: '', status: 'الكل', activity: 'الكل', grade: 'الكل' });
+  useEffect(load, []);
+
+  const reset = () => {
+    setF(DEFAULTS);
+    load();
   };
 
-  const rows = !touched
-    ? VENDORS
-    : VENDORS.filter((v) => {
-        if (f.q && !(v.name.includes(f.q) || v.cr.includes(f.q) || v.vat.includes(f.q))) return false;
-        if (f.status === 'نشط' && v.status !== 'active') return false;
-        if (f.status === 'غير نشط / معلق' && v.status === 'active') return false;
-        if (f.activity !== 'الكل' && !v.activityFull?.startsWith(f.activity) && v.activity !== f.activity && !(f.activity === 'توريد تقني وتكنولوجيا' && v.activity === 'حلول وتقنية المعلومات')) return false;
-        if (f.grade !== 'الكل' && v.grade !== f.grade) return false;
-        return true;
-      });
+  const list = vendors || [];
+  const activities = useMemo(() => ['الكل', ...new Set(list.map((v) => v.activity).filter(Boolean))], [list]);
+  const grades = useMemo(() => ['الكل', ...new Set(list.map((v) => v.grade).filter(Boolean))], [list]);
+
+  const q = f.q.trim().toLowerCase();
+  const rows = list.filter((v) => {
+    if (q && ![v.name, v.commercial_register, v.tax_number, v.email, v.contact_person].some((x) => x && String(x).toLowerCase().includes(q))) return false;
+    if (f.status === 'نشط' && !v.is_active) return false;
+    if (f.status === 'غير نشط / معلق' && v.is_active) return false;
+    if (f.activity !== 'الكل' && v.activity !== f.activity) return false;
+    if (f.grade !== 'الكل' && v.grade !== f.grade) return false;
+    return true;
+  });
+
+  const total = list.length;
+  const active = list.filter((v) => v.is_active).length;
+  const off = total - active;
+  const pct = (n) => (total ? Math.round((n / total) * 1000) / 10 : 0);
+  const quarterAgo = Date.now() - 90 * 86400000;
+  const newQuarter = list.filter((v) => new Date(v.created_at).getTime() >= quarterAgo).length;
+  const renew = list.filter((v) => {
+    const d = crDaysLeft(v);
+    return d !== null && d <= 30;
+  }).length;
 
   const chips = [
     f.status !== 'الكل' && { k: 'status', t: 'الحالة: ' + f.status },
-    f.activity !== 'الكل' && { k: 'activity', t: 'نوع النشاط: توريد وتقنية' },
+    f.activity !== 'الكل' && { k: 'activity', t: 'نوع النشاط: ' + f.activity },
+    f.grade !== 'الكل' && { k: 'grade', t: 'التصنيف: ' + f.grade },
   ].filter(Boolean);
 
   return (
@@ -111,45 +129,47 @@ export default function Vendors() {
       </div>
 
       <div className="vstats">
-        <Stat icon={<IdCardIcon size={26} />} tint={{ bg: '#e8f6ff', fg: '#0b2a4a' }} value="1,148" label="إجمالي الموردين المعتمدين"
-          pill={<>ربع سنوي +24 <TrendUpIcon size={14} /></>} pillClass="is-green" />
-        <Stat icon={<VerifiedIcon size={26} />} tint={{ bg: '#eefff8', fg: '#0a5c36' }} value="1,092" label="موردون بحالة نشطة"
-          pill="من الإجمالي 95.1%" pillClass="is-green" />
-        <Stat icon={<PauseCircleIcon size={26} />} tint={{ bg: '#fff9e8', fg: '#e84a4a' }} value="56" label="موردون معلقون / غير نشطين"
-          pill="مراجعة مطلوبة 4.9%" pillClass="is-red" />
-        <Stat icon={<ShieldCheckIcon size={26} />} tint={{ bg: '#eefff8', fg: '#0a5c36' }} value="99.8%" label="موثوقية الربط الحكومي (MC)"
-          pill="متطابق وآني" pillClass="is-blue" />
+        <Stat icon={<IdCardIcon size={26} />} tint={{ bg: '#e8f6ff', fg: '#0b2a4a' }} value={vendors ? total : '—'} label="إجمالي الموردين المسجلين"
+          pill={<>آخر 3 أشهر +{newQuarter} <TrendUpIcon size={14} /></>} pillClass="is-green" />
+        <Stat icon={<VerifiedIcon size={26} />} tint={{ bg: '#eefff8', fg: '#0a5c36' }} value={vendors ? active : '—'} label="موردون بحالة نشطة"
+          pill={`من الإجمالي ${pct(active)}%`} pillClass="is-green" />
+        <Stat icon={<PauseCircleIcon size={26} />} tint={{ bg: '#fff9e8', fg: '#e84a4a' }} value={vendors ? off : '—'} label="موردون معلقون / غير نشطين"
+          pill={off ? `مراجعة مطلوبة ${pct(off)}%` : 'لا يوجد'} pillClass="is-red" />
+        <Stat icon={<ShieldCheckIcon size={26} />} tint={{ bg: '#eefff8', fg: '#0a5c36' }} value={vendors ? renew : '—'} label="سجلات تجارية تحتاج تجديد"
+          pill="منتهية أو تنتهي خلال 30 يوماً" pillClass="is-blue" />
       </div>
 
       <section className="vfilters">
         <div className="vfilters__row">
           <label className="vsearch">
             <SearchIcon size={22} />
-            <input value={f.q} onChange={(e) => set('q', e.target.value)} placeholder="شركة التقنية" aria-label="بحث عن مورد" />
+            <input value={f.q} onChange={(e) => set('q', e.target.value)} placeholder="اسم المورد، السجل التجاري، الرقم الضريبي أو البريد" aria-label="بحث عن مورد" />
           </label>
           <Sel label="الحالة" prefix="الحالة: " value={f.status} options={STATUS_OPTIONS} onChange={(v) => set('status', v)} />
-          <Sel label="نوع النشاط" value={f.activity} options={['الكل', ...ACTIVITY_OPTIONS.slice(1)]} onChange={(v) => set('activity', v)} />
-          <Sel label="التصنيف" prefix="التصنيف: " value={f.grade} options={GRADE_OPTIONS} onChange={(v) => set('grade', v)} />
+          <Sel label="نوع النشاط" prefix="النشاط: " value={f.activity} options={activities} onChange={(v) => set('activity', v)} />
+          <Sel label="التصنيف" prefix="التصنيف: " value={f.grade} options={grades} onChange={(v) => set('grade', v)} />
           <button type="button" className="vrefresh" aria-label="تحديث" onClick={reset}>
             <RefreshIcon size={20} />
           </button>
         </div>
-        <div className="vchips">
-          <span className="vchips__label">الفلاتر المطبقة:</span>
-          {chips.map((c) => (
-            <button key={c.k} type="button" className="vchip" onClick={() => clear(c.k)}>
-              <CircleXIcon size={16} />
-              {c.t}
-            </button>
-          ))}
-          {f.q && (
-            <button type="button" className="vchip" onClick={() => clear('q')}>
-              <CircleXIcon size={16} />
-              بحث: {f.q}
-            </button>
-          )}
-          <button type="button" className="vchips__clear" onClick={clearAll}>مسح الكل</button>
-        </div>
+        {(chips.length > 0 || f.q) && (
+          <div className="vchips">
+            <span className="vchips__label">الفلاتر المطبقة:</span>
+            {chips.map((c) => (
+              <button key={c.k} type="button" className="vchip" onClick={() => clear(c.k)}>
+                <CircleXIcon size={16} />
+                {c.t}
+              </button>
+            ))}
+            {f.q && (
+              <button type="button" className="vchip" onClick={() => clear('q')}>
+                <CircleXIcon size={16} />
+                بحث: {f.q}
+              </button>
+            )}
+            <button type="button" className="vchips__clear" onClick={() => setF(DEFAULTS)}>مسح الكل</button>
+          </div>
+        )}
       </section>
 
       <div className="vtable">
@@ -172,41 +192,42 @@ export default function Vendors() {
                 <td>
                   <div className="vname">
                     <div className="vname__top">
-                      <strong>{v.listName}</strong>
-                      {v.verified === null ? null : v.verified ? (
+                      <strong>{v.name}</strong>
+                      {verifiedOf(v) ? (
                         <em className="vbadge vbadge--ok"><CircleCheckIcon size={13} />موثق</em>
                       ) : (
-                        <em className="vbadge vbadge--warn"><WarnIcon size={13} />تنبيه</em>
+                        <em className="vbadge vbadge--warn" title="ينقص السجل التجاري أو الرقم الضريبي، أو انتهى السجل"><WarnIcon size={13} />تنبيه</em>
                       )}
                     </div>
-                    {v.legal && <small>{v.legal}</small>}
+                    {v.legal_form && <small>{v.legal_form}</small>}
                   </div>
                 </td>
                 <td>
                   <div className="vnums">
-                    <b>س.ت: {v.cr}</b>
-                    <span>الضريبي: {v.vat}</span>
+                    <b>س.ت: {v.commercial_register || '—'}</b>
+                    <span>الضريبي: {v.tax_number || '—'}</span>
                   </div>
                 </td>
-                <td><span className="vtype">{v.activity}</span></td>
-                <td><strong className="vgrade">{v.grade}</strong></td>
+                <td>{v.activity ? <span className="vtype">{v.activity}</span> : '—'}</td>
+                <td><strong className="vgrade">{v.grade || '—'}</strong></td>
                 <td>
                   <div className="vcontact">
-                    <span><PinIcon size={15} />{v.city}</span>
-                    <span><MailIcon size={15} />{v.email}</span>
-                    <span><PhoneIcon size={15} /><bdi dir="ltr">{v.phone}</bdi></span>
+                    {v.city && <span><PinIcon size={15} />{v.city}</span>}
+                    {v.email && <span><MailIcon size={15} />{v.email}</span>}
+                    {v.phone && <span><PhoneIcon size={15} /><bdi dir="ltr">{v.phone}</bdi></span>}
+                    {!v.city && !v.email && !v.phone && '—'}
                   </div>
                 </td>
                 <td>
-                  <span className={'vstatus' + (v.status === 'active' ? '' : ' is-off')}>
+                  <span className={'vstatus' + (v.is_active ? '' : ' is-off')}>
                     <i />
-                    {v.status === 'active' ? 'نشط ومطابق' : 'غير نشط / معلق'}
+                    {v.is_active ? 'نشط ومطابق' : 'غير نشط / معلق'}
                   </span>
                 </td>
                 <td>
                   <div className="vupd">
-                    <b>{v.updated}</b>
-                    <span>{v.by}</span>
+                    <b>{dateTime(v.updated_at)}</b>
+                    {v.creator?.name && <span>أضافه: {v.creator.name}</span>}
                   </div>
                 </td>
                 <td onClick={(e) => e.stopPropagation()}>
@@ -215,7 +236,21 @@ export default function Vendors() {
               </tr>
             ))}
             {rows.length === 0 && (
-              <tr className="vtable__empty"><td colSpan={8}>لا توجد نتائج مطابقة</td></tr>
+              <tr className="vtable__empty">
+                <td colSpan={8}>
+                  {loadError ? (
+                    <>
+                      {loadError} <button type="button" className="audit__retry" onClick={load}>إعادة المحاولة</button>
+                    </>
+                  ) : !vendors ? (
+                    'جارٍ تحميل الموردين...'
+                  ) : total ? (
+                    'لا توجد نتائج مطابقة'
+                  ) : (
+                    'لا يوجد موردون مسجلون بعد'
+                  )}
+                </td>
+              </tr>
             )}
           </tbody>
         </table>

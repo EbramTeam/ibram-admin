@@ -321,7 +321,7 @@ export default function Roles() {
           tint={{ bg: '#eefff8', fg: '#0a5c36' }}
           value={assignments}
           unit="تعيين"
-          label="المستخدمون المعينون على الأدوار"
+          label="المستخدمون المعينون"
           sub="المستخدم الواحد قد يحمل أكثر من دور"
           subClass="is-green"
         />

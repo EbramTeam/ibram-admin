@@ -269,3 +269,10 @@
 .vstatus { font-size: 12.5px; }
 .vupd b { font-size: 12.5px; font-weight: 400; }
 .vupd span { font-size: 12px; }
+
+/* real supplier data */
+.vpill-cr--warn { background: #fff7e6; color: #8a5300; }
+.vtile__sub.is-red { color: #c62020; font-weight: 600; }
+.vstatusbox__reason { flex-basis: 100%; margin-top: 12px; }
+.vstatusbox { flex-wrap: wrap; }
+.vhead__meta .vcopy { position: static; inset: auto; width: auto; height: auto; margin-inline-start: 4px; background: none; border: 0; padding: 0; color: inherit; cursor: pointer; display: inline-flex; vertical-align: middle; }
