@@ -188,7 +188,7 @@
   flex-shrink: 0;
 }
 .acard__icon--red {
-  background: #ef5b5b;
+  background: #8f0b13;
 }
 .acard__icon--red[data-tone='blue'] {
   background: #0b2a4a;
@@ -395,4 +395,75 @@
 }
 .paged .pager {
   border-top: 1px solid #f0f0f0;
+}
+
+/* action card buttons, four states from the design:
+   default (white, blue border) / hover (light blue) / pressed (stronger blue) / error (red) */
+.mini--soft {
+  background: #fff;
+  color: #0a74e0;
+  border: 1px solid #5aa2f0;
+  font-weight: 600;
+  transition: background 0.15s, border-color 0.15s;
+}
+.mini--soft:hover,
+.mini--soft:focus-visible {
+  background: #e8f6ff;
+  border-color: #5aa2f0;
+}
+.mini--soft:active {
+  background: #a9dcff;
+  border-color: #3b8de8;
+}
+.mini--soft.is-error {
+  background: #fff;
+  color: #c0262d;
+  border-color: #d9666b;
+}
+.mini--soft.is-error:hover,
+.mini--soft.is-error:focus-visible {
+  background: #fff4f4;
+}
+.mini--soft.is-error:active {
+  background: #ffe1e1;
+}
+
+/* main action of the first card: solid blue like the design */
+.mini--primary {
+  background: linear-gradient(90deg, #0077ff, #00b2ff);
+  color: #fff;
+  border: 0;
+  font-weight: 600;
+  transition: filter 0.15s;
+}
+.mini--primary:hover,
+.mini--primary:focus-visible {
+  filter: brightness(1.08);
+}
+.mini--primary:active {
+  filter: brightness(0.92);
+}
+
+.mini--soft:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: #fff;
+}
+.acard__btns {
+  flex-wrap: wrap;
+  align-items: center;
+}
+.acard__note {
+  flex-basis: 100%;
+  font-size: 13px;
+  color: #0a5c36;
+}
+.acard__note.is-bad {
+  color: #c62828;
+}
+
+.mini--primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  filter: none;
 }

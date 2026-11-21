@@ -72,6 +72,22 @@ export default function Dashboard() {
   const [activity, setActivity] = useState(null);
   const [today, setToday] = useState(null); // { all, failed }
   const [loadError, setLoadError] = useState('');
+  const [invite, setInvite] = useState({ busy: false, msg: '', bad: false });
+
+  // emails a "set your password" link to every account still waiting for activation
+  async function sendInvitations() {
+    if (!window.confirm('إرسال رابط تعيين كلمة المرور بالبريد لكل المستخدمين الذين ينتظرون التفعيل؟')) return;
+    setInvite({ busy: true, msg: '', bad: false });
+    try {
+      const r = await api('/users/send-invitations', { method: 'POST' });
+      const parts = [`تم إرسال ${r.sent} رابط`];
+      if (r.throttled) parts.push(`${r.throttled} انبعتلهم رابط قبل قليل`);
+      if (r.failed) parts.push(`تعذّر الإرسال لـ ${r.failed}`);
+      setInvite({ busy: false, msg: parts.join(' · '), bad: r.failed > 0 && !r.sent });
+    } catch (err) {
+      setInvite({ busy: false, msg: err?.status === 429 ? 'أُرسلت الروابط قبل قليل، حاول بعد دقيقتين' : errorText(err), bad: true });
+    }
+  }
 
   useEffect(() => {
     fetchAllUsers()
@@ -186,9 +202,13 @@ export default function Dashboard() {
                 : 'كل المستخدمين سجّلوا الدخول وعيّنوا كلمات مرورهم.'
             }
           >
-            <button type="button" className="mini mini--solid" onClick={() => navigate('/users')}>
+            <button type="button" className="mini mini--soft" onClick={() => navigate('/users')}>
               مراجعة وتفعيل المستخدمين
             </button>
+            <button type="button" className="mini mini--primary" onClick={sendInvitations} disabled={!waiting || invite.busy} title={waiting ? '' : 'لا يوجد مستخدمون بانتظار التفعيل'}>
+              {invite.busy ? 'جارٍ الإرسال...' : 'إعادة إرسال الروابط'}
+            </button>
+            {invite.msg && <small className={'acard__note' + (invite.bad ? ' is-bad' : '')} role="status">{invite.msg}</small>}
           </ActionCard>
 
           <ActionCard
@@ -198,14 +218,14 @@ export default function Dashboard() {
             title="مستخدمون يحتاجون إلى أدوار وصلاحيات"
             text={noRoles ? `${people(noRoles)} بدون أي دور، فلا يستطيعون تنفيذ أي إجراء في المنظومة.` : 'كل المستخدمين لديهم دور واحد على الأقل.'}
           >
-            <button type="button" className="mini mini--solid" onClick={() => navigate("/roles")}>
+            <button type="button" className="mini mini--soft" onClick={() => navigate('/roles')}>
               مراجعة الأدوار والصلاحيات
             </button>
           </ActionCard>
 
           <ActionCard
             tag="أمن سيبراني"
-            tagTone={failed ? 'red' : 'blue'}
+            tagTone="blue"
             icon={<SettingsIcon size={26} />}
             title="محاولات دخول فاشلة اليوم"
             text={
@@ -214,7 +234,7 @@ export default function Dashboard() {
                 : 'لا توجد محاولات دخول فاشلة اليوم.'
             }
           >
-            <button type="button" className="mini mini--solid" onClick={() => navigate("/audit-log")}>
+            <button type="button" className="mini mini--soft" onClick={() => navigate('/audit-log')}>
               مراجعة سجل التدقيق
             </button>
           </ActionCard>
