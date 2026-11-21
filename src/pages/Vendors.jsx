@@ -40,8 +40,10 @@ function Sel({ label, value, options, onChange, prefix }) {
   );
 }
 
+// opens upward when there is no room under the row (the table clips what goes past it)
 function RowMenu({ onOpen, onEdit }) {
   const [open, setOpen] = useState(false);
+  const [up, setUp] = useState(false);
   const ref = useRef(null);
   useEffect(() => {
     if (!open) return;
@@ -51,11 +53,23 @@ function RowMenu({ onOpen, onEdit }) {
   }, [open]);
   return (
     <div className="vkebab" ref={ref}>
-      <button type="button" aria-label="الإجراءات" onClick={(e) => { e.stopPropagation(); setOpen((o) => !o); }}>
+      <button
+        type="button"
+        aria-label="الإجراءات"
+        aria-expanded={open}
+        onClick={(e) => {
+          e.stopPropagation();
+          const btn = e.currentTarget.getBoundingClientRect();
+          const box = e.currentTarget.closest('.vtable')?.getBoundingClientRect();
+          const bottom = Math.min(window.innerHeight, box ? box.bottom : window.innerHeight);
+          setUp(bottom - btn.bottom < 110);
+          setOpen((o) => !o);
+        }}
+      >
         <DotsVerticalIcon size={24} />
       </button>
       {open && (
-        <div className="vkebab__menu" onClick={(e) => e.stopPropagation()}>
+        <div className={'vkebab__menu' + (up ? ' is-up' : '')} onClick={(e) => e.stopPropagation()}>
           <button type="button" onClick={onOpen}>عرض تفاصيل المورد</button>
           <button type="button" onClick={onEdit}>تعديل المورد</button>
         </div>
