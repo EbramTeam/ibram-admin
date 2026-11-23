@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { api } from '../lib/api.js';
+import { api, errorText, getToken, API_URL } from '../lib/api.js';
+import { useAuth } from '../auth.jsx';
 import { dateTime } from '../lib/users.js';
-import { useMaster, fmt } from '../masterStore.jsx';
+import { useMaster, fmt, masterError } from '../masterStore.jsx';
 import { DatabaseIcon, OrgChartIcon } from '../components/Icons.jsx';
 import { CubeIcon } from '../components/MIcons.jsx';
 import { eventLabel, subjectLabel } from '../auditData.js';
@@ -120,70 +121,234 @@ export function SettingsHub() {
 }
 
 // ---------- الإعدادات العامة ----------
+// organization types: the stored value stays English, the label is Arabic
+const ORG_TYPES = [
+  ['university', 'جامعة / كلية'], ['education', 'مؤسسة تعليمية'], ['government', 'جهة حكومية'], ['municipality', 'بلدية / هيئة محلية'],
+  ['health', 'مؤسسة صحية'], ['company', 'شركة خاصة'], ['nonprofit', 'مؤسسة غير ربحية'], ['other', 'جهة أخرى'],
+];
+const CURRENCIES = [
+  ['ILS', 'شيكل (ILS)'], ['USD', 'دولار أمريكي (USD)'], ['JOD', 'دينار أردني (JOD)'], ['EUR', 'يورو (EUR)'],
+  ['EGP', 'جنيه مصري (EGP)'], ['SAR', 'ريال سعودي (SAR)'], ['AED', 'درهم إماراتي (AED)'], ['QAR', 'ريال قطري (QAR)'],
+];
+const LOGO_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
+
+// the logo needs the bearer token, so it is fetched as a blob and shown from an object URL
+async function fetchLogo() {
+  const res = await fetch(`${API_URL}/api/organization/logo`, { headers: { Authorization: `Bearer ${getToken()}` } });
+  if (!res.ok) return '';
+  return URL.createObjectURL(await res.blob());
+}
+
+function Choice({ value, options, onChange, label, disabled }) {
+  const shown = options.find(([v]) => v === value)?.[1] || value || '—';
+  return (
+    <label className={'spsel' + (disabled ? ' is-off' : '')}>
+      <select value={value || ''} onChange={(e) => onChange(e.target.value)} aria-label={label} disabled={disabled}>
+        {!options.some(([v]) => v === value) && <option value={value || ''}>{value || '—'}</option>}
+        {options.map(([v, t]) => <option key={v} value={v}>{t}</option>)}
+      </select>
+      <span>{shown}</span>
+      <ChevronDownIcon size={18} />
+    </label>
+  );
+}
+
 export function SettingsGeneral() {
-  const [logo, setLogo] = useState(settings.logo ? 'default' : '');
-  const [lang, setLang] = useState(document.documentElement.lang === 'en' ? 'English' : 'العربية (الافتراضية الموحدة)');
+  const nav = useNavigate();
+  const { user } = useAuth();
+  const canEdit = (user?.permissions || []).includes('settings.manage');
+  const [org, setOrg] = useState(null);
+  const [form, setForm] = useState({ name: '', type: '', currency: '' });
+  const [loadError, setLoadError] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [notice, setNotice] = useState(null); // {ok, text}
+  const [nameError, setNameError] = useState('');
+  const [logo, setLogo] = useState('');
+  const [logoBusy, setLogoBusy] = useState(false);
+  const [lang, setLang] = useState(document.documentElement.lang === 'en' ? 'en' : 'ar');
+  const [last, setLast] = useState(undefined);
   const file = useRef(null);
-  const pickLang = (v) => {
-    setLang(v);
-    const code = v === 'English' ? 'en' : 'ar';
+
+  const fill = (o) => {
+    setOrg(o);
+    setForm({ name: o.name || '', type: o.type || '', currency: o.currency || '' });
+  };
+  const loadLast = () =>
+    api('/audit-logs?event=organization.*&per_page=1').then((r) => setLast(r.data[0] || null)).catch(() => setLast(null));
+
+  useEffect(() => {
+    api('/organization').then(fill).catch((err) => setLoadError(errorText(err)));
+    fetchLogo().then(setLogo).catch(() => {});
+    loadLast();
+  }, []);
+  useEffect(() => () => logo && URL.revokeObjectURL(logo), [logo]);
+
+  const dirty = org && (form.name.trim() !== (org.name || '') || form.type !== (org.type || '') || form.currency !== (org.currency || ''));
+  const set = (k) => (v) => {
+    setForm((f) => ({ ...f, [k]: v }));
+    setNotice(null);
+    if (k === 'name') setNameError('');
+  };
+
+  async function save() {
+    if (!form.name.trim()) {
+      setNameError('اسم الجهة مطلوب');
+      return;
+    }
+    setSaving(true);
+    setNotice(null);
+    try {
+      fill(await api('/organization', { method: 'PATCH', body: { name: form.name.trim(), type: form.type || null, currency: form.currency || null } }));
+      setNotice({ ok: true, text: 'تم حفظ بيانات الجهة، وسُجّل التعديل في سجل التدقيق.' });
+      loadLast();
+    } catch (err) {
+      setNotice({ ok: false, text: masterError(err) });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function onFile(e) {
+    const fl = e.target.files?.[0];
+    e.target.value = '';
+    if (!fl) return;
+    if (!LOGO_TYPES.includes(fl.type)) return setNotice({ ok: false, text: 'الشعار يجب أن يكون صورة PNG أو JPG أو WEBP.' });
+    if (fl.size > 512 * 1024) return setNotice({ ok: false, text: 'حجم الشعار يجب ألا يتجاوز 512 كيلوبايت.' });
+    const body = new FormData();
+    body.append('logo', fl);
+    setLogoBusy(true);
+    setNotice(null);
+    try {
+      setOrg(await api('/organization/logo', { method: 'POST', body }));
+      setLogo(await fetchLogo());
+      setNotice({ ok: true, text: 'تم تحديث شعار الجهة.' });
+      loadLast();
+    } catch (err) {
+      setNotice({ ok: false, text: masterError(err) });
+    } finally {
+      setLogoBusy(false);
+    }
+  }
+
+  async function removeLogo() {
+    setLogoBusy(true);
+    setNotice(null);
+    try {
+      setOrg(await api('/organization/logo', { method: 'DELETE' }));
+      setLogo('');
+      setNotice({ ok: true, text: 'تمت إزالة الشعار.' });
+      loadLast();
+    } catch (err) {
+      setNotice({ ok: false, text: masterError(err) });
+    } finally {
+      setLogoBusy(false);
+    }
+  }
+
+  const pickLang = (code) => {
+    setLang(code);
     try { localStorage.setItem('ibram-lang', code); } catch (e) {}
     setLanguage(code);
   };
-  const onFile = (e) => {
-    const fl = e.target.files?.[0];
-    if (!fl) return;
-    if (!/^image\/(png|jpe?g|svg\+xml)$/.test(fl.type) || fl.size > 2 * 1024 * 1024) { e.target.value = ''; return; }
-    setLogo(URL.createObjectURL(fl));
-    settings.logo = true;
-  };
+
+  if (!org) {
+    return (
+      <div className="sgen">
+        <PageHead title="الإعدادات العامة" sub="بيانات الجهة وشعارها والتفضيلات العامة للنظام." />
+        <p className={'users-msg' + (loadError ? ' is-err' : '')}>{loadError || 'جارٍ التحميل...'}</p>
+      </div>
+    );
+  }
+
   return (
     <div className="sgen">
-      <PageHead title="الإعدادات" sub="إدارة المعلومات والتفضيلات العامة للجهة والنظام المعتمد سيادياً." tag={<span className="stag stag--plain" dir="ltr">SYS-CONF-V4.2<i /></span>} />
+      <PageHead title="الإعدادات العامة" sub="بيانات الجهة وشعارها والتفضيلات العامة للنظام." />
+      {!canEdit && <p className="users-msg">يمكنك الاطلاع فقط: تعديل هذه الإعدادات يتطلب صلاحية إدارة الإعدادات.</p>}
+      {notice && <p className={'users-msg ' + (notice.ok ? 'is-ok' : 'is-err')} role={notice.ok ? 'status' : 'alert'}>{notice.text}</p>}
+
       <section className="vcard ssec">
-        <header className="ssec__head"><span className="ssec__icon"><BuildingIcon size={24} /></span><div><h2>معلومات الجهة</h2><p>الهوية المعيارية والاسم المعتمد في كافة عقود ومنصات التوريد</p></div><span className="ssec__no">القسم 01</span></header>
+        <header className="ssec__head"><span className="ssec__icon"><BuildingIcon size={24} /></span><div><h2>معلومات الجهة</h2><p>الاسم والنوع كما يظهران في النظام والمراسلات.</p></div><span className="ssec__no">القسم 01</span></header>
         <div className="ssec__cols">
           <div className="sf">
             <h3>اسم الجهة</h3>
-            <p>الاسم القانوني كما يظهر في المخاطبات الرسمية، دفاتر الشروط، وإشعارات الترسية.</p>
-            <div className="sname"><input readOnly value="شركة إبرام القابضة" aria-label="اسم الجهة" /><ShieldCheckIcon size={20} /></div>
-            <small>يُشترط مطابقة الاسم لما هو مسجل في السجل التجاري الموحد للمشتريات.</small>
+            <p>الاسم الرسمي كما يظهر للمستخدمين وفي المستندات الصادرة من النظام.</p>
+            <div className={'sname sname--edit' + (nameError ? ' is-bad' : '')}>
+              <input value={form.name} onChange={(e) => set('name')(e.target.value)} maxLength={255} readOnly={!canEdit} aria-label="اسم الجهة" />
+              <ShieldCheckIcon size={20} />
+            </div>
+            {nameError && <small className="sf__err" role="alert">{nameError}</small>}
+            <div className="sfields">
+              <div>
+                <h4>نوع الجهة</h4>
+                <Choice value={form.type} options={ORG_TYPES} onChange={set('type')} label="نوع الجهة" disabled={!canEdit} />
+              </div>
+              <div>
+                <h4>رمز الجهة</h4>
+                <div className="sname sname--ro"><input readOnly value={org.code || '—'} dir="ltr" aria-label="رمز الجهة" /></div>
+                <small>الرمز ثابت ولا يُعدَّل.</small>
+              </div>
+            </div>
           </div>
           <div className="sf">
             <h3>شعار الجهة</h3>
-            <p>الشعار الرسمي المطبوع على أوامر الشراء والوثائق المتبادلة مع الموردين.</p>
+            <p>يظهر في صفحة الإعدادات ويمكن استخدامه في المستندات الصادرة.</p>
             <div className="slogo">
               <div className="slogo__box">
-                {logo === 'default' ? <div className="slogo__def"><CheckBadgeIcon size={44} /><b>IBRAM</b></div> : logo ? <img src={logo} alt="شعار الجهة" /> : null}
+                {logo ? <img src={logo} alt="شعار الجهة" /> : <div className="slogo__none"><BuildingIcon size={36} /><span>لا يوجد شعار</span></div>}
               </div>
               <div className="slogo__side">
-                <p><InfoCircleIcon size={14} />الصيغ المدعومة: PNG, SVG, JPG  الحجم الأقصى 2 ميجابايت , الأبعاد المستحسنة 512×512 بكسل بخلفية شفافة.</p>
-                <div className="slogo__btns">
-                  <button type="button" className="slogo__up" onClick={() => file.current?.click()}><CloudUploadIcon size={16} />تغيير الشعار</button>
-                  <button type="button" className="slogo__rm" onClick={() => { setLogo(''); settings.logo = false; }}><TrashIcon size={16} />إزالة</button>
-                  <input ref={file} type="file" accept="image/png,image/svg+xml,image/jpeg" hidden onChange={onFile} />
-                </div>
+                <p><InfoCircleIcon size={14} />الصيغ المدعومة: PNG أو JPG أو WEBP، بحجم أقصى 512 كيلوبايت. يُفضّل 512×512 بكسل بخلفية شفافة.</p>
+                {canEdit && (
+                  <div className="slogo__btns">
+                    <button type="button" className="slogo__up" onClick={() => file.current?.click()} disabled={logoBusy}>
+                      <CloudUploadIcon size={16} />{logoBusy ? 'جارٍ الرفع...' : org.has_logo ? 'تغيير الشعار' : 'رفع شعار'}
+                    </button>
+                    {org.has_logo && <button type="button" className="slogo__rm" onClick={removeLogo} disabled={logoBusy}><TrashIcon size={16} />إزالة</button>}
+                    <input ref={file} type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={onFile} />
+                  </div>
+                )}
               </div>
             </div>
           </div>
         </div>
       </section>
+
       <section className="vcard ssec">
-        <header className="ssec__head"><span className="ssec__icon"><GlobeIcon2 size={24} /></span><div><h2>التفضيلات العامة</h2><p>ضبط اللغات الإقليمية، المنطقة الزمنية المعتمدة، وتنسيقات التاريخ الحسابي للمنظومة</p></div><span className="ssec__no">القسم 02</span></header>
-        <div className="sprefs">
-          <div className="spref"><div className="spref__h"><b><TranslateIcon size={18} />اللغة الرسمية</b><i /></div><p>لغة واجهة المستخدم والتقارير التنفيذية الصادرة.</p>
-            <label className="spsel"><select value={lang} onChange={(e) => pickLang(e.target.value)}><option>العربية (الافتراضية الموحدة)</option><option>English</option></select><span>{lang}</span><ChevronDownIcon size={18} /></label><small>يدعم النظام التدقيق اللغوي التلقائي للنصوص العربية.</small></div>
-          <div className="spref"><div className="spref__h"><b><ClockIcon size={18} />المنطقة الزمنية</b><em dir="ltr">UTC+03:00</em></div><p>حساب مواعيد فتح المظاريف والمهل الزمنية للمنافسات.</p>
-            <label className="spsel"><select defaultValue="توقيت مكة المكرمة / الرياض (UTC+03:00)"><option>توقيت مكة المكرمة / الرياض (UTC+03:00)</option></select><span>توقيت مكة المكرمة / الرياض (UTC+03:00)</span><ChevronDownIcon size={18} /></label><small>يتم تسجيل الأختام الزمنية في سجل التدقيق وفق هذا التوقيت.</small></div>
-          <div className="spref"><div className="spref__h"><b><CalendarIcon size={18} />تنسيق التاريخ</b></div><p>عرض التواريخ في جداول الترسية ودفاتر الشروط.</p>
-            <label className="spsel"><select defaultValue="هجري / ميلادي مزدوج: 1445/10/15 هـ (2024/04/24 م)"><option>هجري / ميلادي مزدوج: 1445/10/15 هـ (2024/04/24 م)</option></select><span>هجري / ميلادي مزدوج: 1445/10/15 هـ (2024/04/24 م)</span><ChevronDownIcon size={18} /></label><small>يعتمد نظام المشتريات تقويم أم القرى لحساب المهل القانونية.</small></div>
+        <header className="ssec__head"><span className="ssec__icon"><GlobeIcon2 size={24} /></span><div><h2>التفضيلات العامة</h2><p>العملة المعتمدة ولغة الواجهة.</p></div><span className="ssec__no">القسم 02</span></header>
+        <div className="sprefs sprefs--two">
+          <div className="spref">
+            <div className="spref__h"><b><BankIcon size={18} />العملة المعتمدة</b><em dir="ltr">{form.currency || '—'}</em></div>
+            <p>العملة التي تُعرض بها المبالغ والتكاليف التقديرية في طلبات الشراء.</p>
+            <Choice value={form.currency} options={CURRENCIES} onChange={set('currency')} label="العملة" disabled={!canEdit} />
+            <small>تنطبق على كل مستخدمي الجهة.</small>
+          </div>
+          <div className="spref">
+            <div className="spref__h"><b><TranslateIcon size={18} />لغة الواجهة</b></div>
+            <p>لغة عرض لوحة الإدارة على هذا المتصفح.</p>
+            <Choice value={lang} options={[['ar', 'العربية'], ['en', 'English']]} onChange={pickLang} label="لغة الواجهة" />
+            <small>تفضيل شخصي يُحفظ على جهازك فقط، ولا يغيّر لغة باقي المستخدمين.</small>
+          </div>
         </div>
       </section>
-      <section className="vcard sgov2">
-        <span className="scard2__icon"><ShieldCheckIcon size={22} /></span>
-        <div><strong>حوكمة الإعدادات المركزية</strong><p>تخضع كافة التغييرات للتوثيق المشفر في السجل السيادي للعمليات (Audit Trail) بقرم ترخيص جهة سار.</p></div>
-        <span className="sig" dir="ltr"><FingerprintIcon size={14} />AUTH-SIG: 9FA8-230C-7140</span>
+
+      <section className="shub2__audit">
+        <span className="shub2__auditicon"><ClockHistoryIcon size={20} /></span>
+        <div>
+          <strong>آخر تعديل على بيانات الجهة</strong>
+          <p>
+            {last === undefined ? 'جارٍ التحميل...' : last ? <>{last.user?.name || 'النظام'} · {dateTime(last.created_at)}</> : 'لم تُعدَّل بيانات الجهة بعد'}
+          </p>
+        </div>
+        <button type="button" className="btn-outline" onClick={() => nav('/audit-log')}>عرض سجل التدقيق</button>
       </section>
+
+      {dirty && canEdit && (
+        <div className="uroles__bar" role="region" aria-label="حفظ التغييرات">
+          <span>لم تُحفظ التغييرات بعد</span>
+          <button type="button" className="btn-outline" onClick={() => fill(org)} disabled={saving}>تراجع</button>
+          <button type="button" className="btn-primary" onClick={save} disabled={saving}>{saving ? 'جارٍ الحفظ...' : 'حفظ التغييرات'}</button>
+        </div>
+      )}
     </div>
   );
 }
