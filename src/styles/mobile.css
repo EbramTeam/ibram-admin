@@ -1471,3 +1471,19 @@
 /* notification settings: the always-on row */
 .snot__always { background: #f7f9fc; }
 .sw.is-locked { opacity: 0.55; cursor: not-allowed; display: inline-block; }
+
+/* sidebar: the organization's own logo */
+.sidebar__brand--org { align-items: center; text-align: center; }
+.sidebar__brand--org img {
+  width: auto;
+  max-width: 120px;
+  max-height: 96px;
+  margin-inline-start: 0;
+  object-fit: contain;
+}
+.sidebar__brand--org span {
+  max-width: 200px;
+  font-weight: 600;
+  line-height: 1.5;
+  color: #0a1a2e;
+}

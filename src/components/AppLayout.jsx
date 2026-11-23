@@ -3,6 +3,7 @@ import { useMaster } from '../masterStore.jsx';
 import { useAuth } from '../auth.jsx';
 import { api } from '../lib/api.js';
 import { lastSeen } from '../lib/users.js';
+import { useOrgBrand } from '../lib/orgBrand.js';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { NAV_ITEMS } from '../data.js';
@@ -277,12 +278,23 @@ function crumbsFor(pathname, M) {
 function Sidebar({ open, onClose }) {
   const { pathname } = useLocation();
   const { user } = useAuth();
+  // the organization's own logo replaces the platform logo once it is uploaded
+  const brand = useOrgBrand(Boolean(user));
   return (
     <aside className={'sidebar' + (open ? ' is-open' : '')} onClick={(e) => e.target.closest('a') && onClose()}>
       <div className="sidebar__scroll">
-        <Link to="/" className="sidebar__brand">
-          <img src="/assets/ibram-logo.png" alt="IBRAM" />
-          <span>إبرام للمشتريات</span>
+        <Link to="/" className={'sidebar__brand' + (brand.logo ? ' sidebar__brand--org' : '')}>
+          {brand.logo ? (
+            <>
+              <img src={brand.logo} alt={brand.name || 'شعار الجهة'} />
+              <span>{brand.name}</span>
+            </>
+          ) : (
+            <>
+              <img src="/assets/ibram-logo.png" alt="IBRAM" />
+              <span>إبرام للمشتريات</span>
+            </>
+          )}
         </Link>
         <div className="sidebar__label">القوائم التشغيلية</div>
         <nav className="sidebar__nav">

@@ -1947,5 +1947,6 @@
 "5 محاولات دخول فاشلة على حساب في جهتك (لمدراء المستخدمين)، وتحديث أدوارك وصلاحياتك.": "5 failed sign-ins on an account in your organization (for user managers), and updates to your roles and permissions.",
 "دائماً": "Always",
 "حفظ التفضيلات": "Save preferences",
-"تم حفظ تفضيلات الإشعارات. تُطبَّق على الإشعارات الجديدة من الآن.": "Notification preferences saved. They apply to new notifications from now on."
+"تم حفظ تفضيلات الإشعارات. تُطبَّق على الإشعارات الجديدة من الآن.": "Notification preferences saved. They apply to new notifications from now on.",
+"يظهر أعلى القائمة الجانبية للوحة بدلاً من شعار المنصة، مع اسم الجهة.": "Shown at the top of the sidebar instead of the platform logo, with the organization name."
 }

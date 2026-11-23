@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { api, errorText, getToken, API_URL } from '../lib/api.js';
 import { useAuth } from '../auth.jsx';
+import { brandChanged } from '../lib/orgBrand.js';
 import { dateTime } from '../lib/users.js';
 import { useMaster, fmt, masterError } from '../masterStore.jsx';
 import { DatabaseIcon, OrgChartIcon } from '../components/Icons.jsx';
@@ -199,6 +200,7 @@ export function SettingsGeneral() {
     try {
       fill(await api('/organization', { method: 'PATCH', body: { name: form.name.trim(), type: form.type || null, currency: form.currency || null } }));
       setNotice({ ok: true, text: 'تم حفظ بيانات الجهة، وسُجّل التعديل في سجل التدقيق.' });
+      brandChanged();
       loadLast();
     } catch (err) {
       setNotice({ ok: false, text: masterError(err) });
@@ -221,6 +223,7 @@ export function SettingsGeneral() {
       setOrg(await api('/organization/logo', { method: 'POST', body }));
       setLogo(await fetchLogo());
       setNotice({ ok: true, text: 'تم تحديث شعار الجهة.' });
+      brandChanged();
       loadLast();
     } catch (err) {
       setNotice({ ok: false, text: masterError(err) });
@@ -236,6 +239,7 @@ export function SettingsGeneral() {
       setOrg(await api('/organization/logo', { method: 'DELETE' }));
       setLogo('');
       setNotice({ ok: true, text: 'تمت إزالة الشعار.' });
+      brandChanged();
       loadLast();
     } catch (err) {
       setNotice({ ok: false, text: masterError(err) });
@@ -290,7 +294,7 @@ export function SettingsGeneral() {
           </div>
           <div className="sf">
             <h3>شعار الجهة</h3>
-            <p>يظهر في صفحة الإعدادات ويمكن استخدامه في المستندات الصادرة.</p>
+            <p>يظهر أعلى القائمة الجانبية للوحة بدلاً من شعار المنصة، مع اسم الجهة.</p>
             <div className="slogo">
               <div className="slogo__box">
                 {logo ? <img src={logo} alt="شعار الجهة" /> : <div className="slogo__none"><BuildingIcon size={36} /><span>لا يوجد شعار</span></div>}
