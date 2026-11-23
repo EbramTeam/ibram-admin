@@ -252,6 +252,23 @@ export default function UserRoles() {
           </div>
         </aside>
       </div>
+
+      {/* the save button is at the top of the page: keep it reachable while choosing */}
+      {changed && !isMe && (
+        <div className="uroles__bar" role="region" aria-label="حفظ التغييرات">
+          <span>
+            {added.length > 0 && <b className="is-add">+{added.length} إضافة</b>}
+            {removed.length > 0 && <b className="is-del">−{removed.length} إزالة</b>}
+            لم تُحفظ التغييرات بعد
+          </span>
+          <button type="button" className="btn-outline" onClick={() => { setPicked(current); setError(''); }} disabled={saving}>
+            تراجع
+          </button>
+          <button type="button" className="btn-primary" onClick={save} disabled={saving}>
+            {saving ? 'جارٍ الحفظ...' : 'حفظ الأدوار الجديدة'}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

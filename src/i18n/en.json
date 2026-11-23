@@ -1854,5 +1854,7 @@
 "يُطلب منك عند أول دخول بكلمة مرور مؤقتة تعيين كلمة مرور جديدة خاصة بك (8 أحرف على الأقل) قبل استخدام النظام.": "When you first sign in with a temporary password, you're asked to set your own new password (at least 8 characters) before using the system.",
 "للإبلاغ عن ثغرة أو نشاط مريب، استخدم صفحة": "To report a vulnerability or suspicious activity, use the",
 "أو تواصل مع مسؤول النظام في جهتك.": "page or contact your organization's system administrator.",
-"مسح الفلاتر وتحديث البيانات": "Clear filters and refresh data"
+"مسح الفلاتر وتحديث البيانات": "Clear filters and refresh data",
+"لم تُحفظ التغييرات بعد": "Changes not saved yet",
+"حفظ التغييرات": "Save changes"
 }
