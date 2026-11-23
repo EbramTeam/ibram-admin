@@ -354,37 +354,102 @@ export function SettingsGeneral() {
 }
 
 // ---------- المشتريات وسير العمل ----------
+// The stages are the real workflow enforced by the server. Who does each stage comes live from the roles
+// (whoever holds the permission), and the counts are live purchase requests / RFQs at that stage.
 const STAGES = [
-  { n: 1, t: 'إنشاء طلب الشراء', b: 'مكتمل آليا', dark: true, d: 'الجهة الطالبة / موظف المشتريات. التحقق الأولي من اكتمال المواصفات وتحديد التصنيف المناسب وضمان وضوح نطاق العمل.', sla: 'SLA: 24 ساعة كحد أقصى', c: [['الجهة المسؤولة: الإدارة الطالبة / مدخل البيانات', <BuildingIcon size={14} />], ['نقطة التحقق: مصفوفة التصنيف الموحد (UNSPSC)', <ClipboardListIcon size={14} />]] },
-  { n: 2, t: 'مراجعة واعتماد الطلب', b: 'مستوى إشرافي', d: 'مدير الإدارة الطالبة والمشرف المباشر. مراجعة الجدوى التشغيلية وتوافق الاحتياج مع الخطة السنوية للجهة قبل التصعيد المالي.', sla: 'SLA: 48 ساعة', c: [['الجهة المسؤولة: مدير الإدارة المختصة (Level 1)', <SmallUserIcon size={14} />], ['المصادقة: توقيع رقمي معتمد', <ShieldCheckIcon size={14} />]] },
-  { n: 3, t: 'التحقق من الموازنة وتوفر البند المالي', b: 'رقابة مالية إلزامية', d: 'الإدارة المالية والميزانية. التحقق من مطابقة التكاليف التقديرية وتخصيص البند وحجز المخصص المالي السيادي قبل الطرح.', sla: 'SLA: 24 ساعة', c: [['الجهة المسؤولة: الرقابة المالية وإدارة الموازنة', <BankIcon size={14} />], ['الحجز المالي: ارتباط آلي بنظام الخزينة', <LockIcon size={14} />]] },
-  { n: 4, t: 'إدارة طلبات عروض الأسعار واستلام العروض', b: 'سلاسل الإمداد', d: 'مسؤولو المشتريات وسلاسل الإمداد. توجيه الدعوات واستلام العروض الفنية والمالية المشفرة والمغلقة عبر المنصة المعتمدة.', sla: 'SLA: 3 - 5 أيام عمل', c: [['الجهة المسؤولة: قسم المشتريات والمنافسات', <DocIcon size={14} />], ['آلية التشفير: مظاريف مغلقة رقمياً', <LockIcon size={14} />]] },
+  { n: 1, icon: <FileTextIcon size={18} />, t: 'إنشاء طلب الشراء وإرساله', perm: ['purchase_requests.create'],
+    d: 'تنشئ الإدارة الطالبة الطلب كمسودة بالأصناف والكميات والتكلفة التقديرية، ثم ترسله للمراجعة. الطلب المُعاد للاستكمال يرجع لهذه المرحلة.',
+    status: ['needs_revision'], countLabel: 'بحاجة لاستكمال' },
+  { n: 2, icon: <ClipboardCheckIcon size={18} />, t: 'مراجعة مدير الإدارة', perm: ['purchase_requests.review'],
+    d: 'يراجع مدير الإدارة الطالبة الطلب: يوافق عليه فيُحال للاعتماد، أو يعيده للاستكمال مع ملاحظات، أو يرفضه.',
+    status: ['submitted', 'under_review'], countLabel: 'بانتظار المراجعة' },
+  { n: 3, icon: <BankIcon size={18} />, t: 'التحقق المالي من توفر المخصصات', perm: ['budget.verify'],
+    d: 'تتحقق المالية من توفر المخصص للطلب وتسجّل نتيجة التحقق. يتم ذلك أثناء المراجعة أو قبل الاعتماد النهائي.', parallel: true },
+  { n: 4, icon: <ShieldCheckIcon size={18} />, t: 'الاعتماد النهائي للطلب', perm: ['purchase_requests.approve'],
+    d: 'تعتمد الجهة المخوّلة الطلب نهائياً أو ترفضه. الطلب المعتمد يصبح جاهزاً لطلب عروض الأسعار.',
+    status: ['pending_approval'], countLabel: 'بانتظار الاعتماد' },
+  { n: 5, icon: <MegaphoneIcon size={18} />, t: 'طلب عروض الأسعار وإرساله للموردين', perm: ['rfqs.manage'],
+    d: 'تُنشئ المشتريات طلب عروض أسعار (RFQ) من الطلب المعتمد، وتختار الموردين وترسله لهم وتحدد موعد استلام العروض.',
+    rfq: ['draft', 'ready_to_send', 'sent', 'awaiting_quotations'], countLabel: 'طلب عروض مفتوح' },
+  { n: 6, icon: <FolderOpenIcon size={18} />, t: 'استلام العروض وفتح المظاريف', perm: ['quotations.manage', 'bid_opening.manage'], approve: 'bid_opening.approve',
+    d: 'تُسجَّل عروض الموردين، ثم تفتحها لجنة فتح المظاريف في جلسة رسمية وتحرر محضراً يُرفع للاعتماد.' },
+  { n: 7, icon: <GavelIcon size={18} />, t: 'مقارنة العروض والتوصية', perm: ['quotations.compare'],
+    d: 'تُقارن العروض المطابقة فنياً ومالياً، وتُسجَّل التوصية بالمورد الأنسب مع مبرراتها.' },
 ];
+
+async function countOf(path) {
+  try {
+    return (await api(path)).total ?? 0;
+  } catch {
+    return null;
+  }
+}
+
 export function SettingsProcurement() {
   const nav = useNavigate();
+  const [roles, setRoles] = useState(null);
+  const [counts, setCounts] = useState({});
+
+  useEffect(() => {
+    api('/roles').then((r) => setRoles(r.data.filter((x) => x.is_active !== false))).catch(() => setRoles([]));
+    STAGES.forEach((st) => {
+      const paths = st.status ? st.status.map((x) => `/purchase-requests?status=${x}`) : st.rfq ? st.rfq.map((x) => `/rfqs?status=${x}`) : null;
+      if (!paths) return;
+      Promise.all(paths.map(countOf)).then((ns) => setCounts((c) => ({ ...c, [st.n]: ns.some((v) => v === null) ? null : ns.reduce((a, v) => a + v, 0) })));
+    });
+  }, []);
+
+  // active roles that hold any of the given permissions (admin holds everything, so it is left out to keep the list useful)
+  const holders = (perms) =>
+    (roles || []).filter((r) => r.name !== 'admin' && r.permissions.some((p) => perms.includes(p.name))).map((r) => r.label || r.name);
+
   return (
     <div className="sproc">
-      <PageHead title="المشتريات وسير العمل" sub="إدارة إعدادات المشتريات ومراجعة مراحل الطلبات والاعتمادات وفق القواعد المعتمدة للجهة." tag={<span className="stag">حاكمية إجرائية<i /></span>} inline>
-        <div className="sprod sprod--ver"><span className="sprod__icon"><ShieldCheckIcon size={20} /></span><div><strong dir="ltr">SYS-PROC-CONF-V1.8</strong><small>سيادي موحد · تدقيق نشط</small></div></div>
-      </PageHead>
+      <PageHead title="المشتريات وسير العمل" sub="المراحل التي يمر بها طلب الشراء من إنشائه حتى التوصية بالمورد، ومن يتولى كل مرحلة." />
       <section className="sban">
         <span className="sban__icon"><LockOpenIcon size={22} /></span>
-        <div><strong>إعدادات سير العمل غير مهيأة للتعديل</strong><p>يتم تحديد مراحل سير العمل وقواعد الاعتماد تلقائياً وفق المتطلبات المعتمدة للنظام والمسار السيادي المعياري لضمان الشفافية والامتثال المالي الموحد.</p></div>
-        <button type="button" className="sban__btn" onClick={() => nav('/audit-log')}>سجل الاعتماد التنظيمي<ShieldCheckIcon size={14} /></button>
+        <div>
+          <strong>المراحل ثابتة، ومن يتولاها يُحدَّد بالأدوار</strong>
+          <p>ترتيب المراحل يفرضه النظام ولا يُعدَّل من هنا. للتحكم بمن يقوم بكل مرحلة، عدّل صلاحيات الأدوار أو أسند الأدوار للمستخدمين.</p>
+        </div>
+        <button type="button" className="sban__btn" onClick={() => nav('/roles')}>إدارة الأدوار والصلاحيات<ShieldCheckIcon size={14} /></button>
       </section>
       <section className="vcard spath">
-        <header className="spath__head"><div><h2>المسار المعياري المعتمد لدورة المشتريات</h2><p>تسلسل إلزامي خاضع للرقابة الإدارية والمالية الشاملة</p></div><span className="spath__tot">إجمالي المراحل: <b>6 محطات نظامية</b></span></header>
+        <header className="spath__head">
+          <div><h2>دورة المشتريات المعتمدة في النظام</h2><p>الأرقام تعرض ما هو موجود الآن في كل مرحلة</p></div>
+          <span className="spath__tot">إجمالي المراحل: <b>{STAGES.length} مراحل</b></span>
+        </header>
         <ol className="spath__list">
-          {STAGES.map((s) => (
-            <li key={s.n}>
-              <span className="spath__n">{s.n}</span>
-              <div className="spstage">
-                <div className="spstage__top"><strong>{s.t}</strong><em className={s.dark ? 'is-dark' : ''}>{s.b}</em><small>{s.sla}</small></div>
-                <p>{s.d}</p>
-                <div className="spstage__chips">{s.c.map(([t, ic]) => <span key={t}>{ic}{t}</span>)}</div>
-              </div>
-            </li>
-          ))}
+          {STAGES.map((st) => {
+            const who = holders(st.perm);
+            const approvers = st.approve ? holders([st.approve]) : [];
+            const n = counts[st.n];
+            return (
+              <li key={st.n}>
+                <span className="spath__n">{st.n}</span>
+                <div className="spstage">
+                  <div className="spstage__top">
+                    <strong>{st.t}</strong>
+                    {st.parallel && <em>بالتوازي مع المراجعة</em>}
+                    {st.countLabel && (
+                      <small className={'spstage__count' + (n ? ' is-on' : '')}>
+                        {n === undefined ? '...' : n === null ? '—' : `${fmt(n)} ${st.countLabel}`}
+                      </small>
+                    )}
+                  </div>
+                  <p>{st.d}</p>
+                  <div className="spstage__chips">
+                    <span>
+                      <SmallUserIcon size={14} />
+                      {roles === null ? 'جارٍ التحميل...' : who.length ? 'يتولاها: ' + who.join('، ') : 'لا يوجد دور نشط بهذه الصلاحية غير مدير النظام'}
+                    </span>
+                    {approvers.length > 0 && <span><CertIcon size={14} />يعتمد المحضر: {approvers.join('، ')}</span>}
+                    <span className="spstage__perm" dir="ltr">{st.perm.join(' · ')}</span>
+                  </div>
+                </div>
+              </li>
+            );
+          })}
         </ol>
       </section>
     </div>

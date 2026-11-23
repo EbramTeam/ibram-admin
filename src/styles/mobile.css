@@ -1449,3 +1449,21 @@
   .sfields, .sprefs--two { grid-template-columns: 1fr; }
 }
 .users-msg.is-ok { background: #ecfbf2; color: #146c3a; }
+
+/* procurement workflow: live counts and permission codes */
+.spstage__count {
+  margin-inline-start: auto;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: #f1f3f6;
+  color: #5b6573 !important;
+  font-size: 12.5px !important;
+  font-weight: 600;
+}
+.spstage__count.is-on { background: #fff4e0; color: #9a5b00 !important; }
+.spstage__perm {
+  background: #f5f7fa !important;
+  color: #6b7785 !important;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 11.5px !important;
+}
