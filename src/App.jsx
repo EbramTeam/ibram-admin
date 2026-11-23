@@ -1,7 +1,6 @@
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { useParams, Routes, Route, Navigate } from 'react-router-dom';
 import AppLayout from './components/AppLayout.jsx';
 import { RequireAdmin } from './auth.jsx';
-import Placeholder from './components/Placeholder.jsx';
 import { Support, Privacy, CyberCompliance } from './pages/InfoPages.jsx';
 import Login from './pages/Login.jsx';
 import UserLogin from './pages/UserLogin.jsx';
@@ -28,6 +27,16 @@ import { DepartmentDetail, ItemDetail, UnitDetail, CategoryDetail } from './page
 import { DepartmentForm, ItemForm, UnitForm, CategoryForm } from './pages/master/MasterForm.jsx';
 import { SettingsHub, SettingsGeneral, SettingsProcurement, SettingsNotifications } from './pages/SettingsPages.jsx';
 
+// old edit links: editing a user happens on their detail page, editing a role on the roles page
+function ToUser() {
+  const { id } = useParams();
+  return <Navigate to={`/users/${id}`} replace />;
+}
+function ToRoles() {
+  const { key } = useParams();
+  return <Navigate to="/roles" replace state={/^\d+$/.test(key) ? { selectId: Number(key) } : undefined} />;
+}
+
 export default function App() {
   return (
     <RolesProvider>
@@ -53,10 +62,10 @@ export default function App() {
         <Route path="/users/new" element={<AddUser />} />
         <Route path="/users/:id" element={<UserDetail />} />
         <Route path="/users/:id/permissions" element={<UserRoles />} />
-        <Route path="/users/:id/edit" element={<Placeholder />} />
+        <Route path="/users/:id/edit" element={<ToUser />} />
         <Route path="/roles" element={<Roles />} />
         <Route path="/roles/new" element={<AddRole />} />
-        <Route path="/roles/:key/edit" element={<Placeholder />} />
+        <Route path="/roles/:key/edit" element={<ToRoles />} />
         <Route path="/vendors" element={<Vendors />} />
         <Route path="/vendors/new" element={<VendorForm />} />
         <Route path="/vendors/:id" element={<VendorDetail />} />

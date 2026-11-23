@@ -7,7 +7,6 @@ import { DatabaseIcon, OrgChartIcon } from '../components/Icons.jsx';
 import { CubeIcon } from '../components/MIcons.jsx';
 import { eventLabel, subjectLabel } from '../auditData.js';
 import { useNavigate } from 'react-router-dom';
-import { settings, NOTIF_DEFAULT } from '../settingsStore.js';
 import { setLanguage } from '../i18n/translate.js';
 import { PageHead } from './master/Bits.jsx';
 import Cbx from '../components/Cbx.jsx';
@@ -457,43 +456,104 @@ export function SettingsProcurement() {
 }
 
 // ---------- إعدادات الإشعارات ----------
+// Personal preferences saved on the server: a muted category is not delivered to this user at all.
+// Security alerts and changes to your own roles are always delivered.
 const NOTIFS = [
-  { k: 'approvals', icon: <ClipboardCheckIcon size={24} />, t: 'الموافقات والإجراءات المطلوبة', tag: 'مستوى التدقيق والاعتماد', who: 'إلزامي للمعتمدين', d: 'إشعارات فورية عند وجود طلب شراء أو اعتماد يتطلب مراجعة المستخدم أو اتخاذ إجراء تنفيذي منه ضمن سلسلة الصلاحيات.' },
-  { k: 'returns', icon: <ClipboardListIcon size={24} />, t: 'إرجاع الطلبات والتعليقات', tag: 'التواصل وسير العمل', who: 'حسب دور المستخدم', d: 'إشعارات عند إرجاع طلب للشراء لإعادة الاستيفاء أو إضافة تعليق وملاحظات تدقيق في أو مالي مرتبطة به.' },
-  { k: 'rfq', icon: <FileTextIcon size={24} />, t: 'طلبات عروض الأسعار', tag: 'سلاسل الإمداد والتوريد', who: 'مسؤولو المشتريات والتسعير', d: 'إشعارات مرتبطة بإجراءات طلبات عروض الأسعار (RFQ)، إصدار الدعوات وتحديثات مهل تقديم العروض للموردين المعنيين.' },
-  { k: 'opening', icon: <FolderOpenIcon size={24} />, t: 'استلام العروض وفتحها', tag: 'اللجان المعتمدة فقط', who: 'لجان المشتريات والمظاريف', d: 'إشعارات مرتبطة بمراحل استلام العروض الفنية والمالية، إغلاق المظاريف، وتحديد جلسات فتح المظاريف (أعضاء لجان الفتح والمخولين فقط).' },
-  { k: 'system', icon: <MegaphoneIcon size={24} />, t: 'التحديثات العامة للنظام', tag: 'إعلانات تشغيلية', who: 'كافة المستخدمين', d: 'إشعارات تشغيلية عامة حول صيانة النظام، تحديث لوائح المشتريات التنظيمية، وإعلانات إدارة المنصة.' },
+  { k: 'requests', icon: <ClipboardCheckIcon size={24} />, t: 'طلبات الشراء والموافقات', who: 'المراجعون والمعتمدون والمشتريات',
+    d: 'طلب شراء جديد بانتظار مراجعتك، أو طلب أُحيل لك للاعتماد، أو اعتماد طلب (لمقدّم الطلب ولمسؤولي طلبات العروض).' },
+  { k: 'returns', icon: <ClipboardListIcon size={24} />, t: 'الإرجاع والرفض', who: 'مقدّمو الطلبات ومحررو المحاضر',
+    d: 'إعادة طلبك أو محضر فتح العروض للتعديل مع الملاحظات، أو رفض طلب الشراء.' },
+  { k: 'bid_opening', icon: <FolderOpenIcon size={24} />, t: 'محاضر فتح العروض', who: 'معتمدو المحاضر ومحرروها',
+    d: 'محضر فتح عروض بانتظار اعتمادك، أو اعتماد محضر حررته.' },
+  { k: 'administration', icon: <SettingsIcon size={24} />, t: 'أعمال الإدارة', who: 'مدراء المستخدمين والموردين والإعدادات',
+    d: 'إضافة مستخدمين وتغيير أدوارهم وتعطيلهم، وتعديل الأدوار والموردين والبيانات الأساسية وبيانات الجهة من قِبل مدير آخر.' },
+  { k: 'inbox', icon: <MegaphoneIcon size={24} />, t: 'طلبات التسجيل ورسائل التواصل', who: 'مدراء الإعدادات',
+    d: 'طلبات تسجيل المنشآت الجديدة والرسائل الواردة من نموذج الدعم والتواصل.' },
 ];
+
 export function SettingsNotifications() {
   const nav = useNavigate();
-  const [v, setV] = useState({ ...settings.notif });
-  const save = () => { settings.notif = { ...v }; nav('/settings'); };
-  const cancel = () => { setV({ ...settings.notif }); nav('/settings'); };
+  const [saved, setSaved] = useState(null); // muted list on the server
+  const [muted, setMuted] = useState([]);
+  const [loadError, setLoadError] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [notice, setNotice] = useState(null);
+
+  useEffect(() => {
+    api('/notification-preferences')
+      .then((r) => { setSaved(r.muted); setMuted(r.muted); })
+      .catch((err) => setLoadError(errorText(err)));
+  }, []);
+
+  const on = (k) => !muted.includes(k);
+  const flip = (k) => {
+    setNotice(null);
+    setMuted((m) => (m.includes(k) ? m.filter((x) => x !== k) : [...m, k]));
+  };
+  const dirty = saved && (saved.length !== muted.length || saved.some((k) => !muted.includes(k)));
+
+  async function save() {
+    setSaving(true);
+    setNotice(null);
+    try {
+      const r = await api('/notification-preferences', { method: 'PUT', body: { muted } });
+      setSaved(r.muted);
+      setMuted(r.muted);
+      setNotice({ ok: true, text: 'تم حفظ تفضيلات الإشعارات. تُطبَّق على الإشعارات الجديدة من الآن.' });
+    } catch (err) {
+      setNotice({ ok: false, text: masterError(err) });
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
     <div className="snot">
-      <PageHead title="إعدادات الإشعارات" sub="إدارة تفضيلات الإشعارات المرتبطة بإجراءات المشتريات وسير العمل في النظام وحوكمة تدفق التنبيهات المعتمدة." tag={<span className="stag stag--blue">تحديث تلقائي للملف الشخصي<ClockIcon size={14} /></span>} />
-      <section className="snot__ban"><span className="sban__icon"><ShieldCheckIcon size={22} /></span><div><strong>ملاحظة حوكمية وإشعار الصلاحيات المعتمدة</strong><p>تقتصر الإشعارات المعروضة على المراحل والصلاحيات الممنوحة لحسابك الإداري وفق مصفوفة الأدوار المعتمدة. لن يتم إرسال تنبيهات لإجراءات تقع خارج نطاق اختصاصك الوظيفي، وتُطبّق سياسات التدقيق الآلي والسرية على كافة الرسائل المرسلة من منصة إبرام.</p></div></section>
+      <PageHead title="إعدادات الإشعارات" sub="اختر الإشعارات التي تصلك داخل النظام. هذه التفضيلات خاصة بحسابك ولا تؤثر على باقي المستخدمين." />
+      <section className="snot__ban">
+        <span className="sban__icon"><ShieldCheckIcon size={22} /></span>
+        <div>
+          <strong>ما يصلك يعتمد أيضاً على صلاحياتك</strong>
+          <p>لا يصلك إشعار عن مرحلة لا تملك صلاحيتها، ولا عن إجراء قمت به بنفسك. التنبيهات الأمنية (محاولات الدخول الفاشلة) وتغيير أدوار حسابك تصل دائماً ولا يمكن إيقافها.</p>
+        </div>
+      </section>
+      {notice && <p className={'users-msg ' + (notice.ok ? 'is-ok' : 'is-err')} role={notice.ok ? 'status' : 'alert'}>{notice.text}</p>}
       <section className="vcard snot__card">
-        <header><div><h2>فئات إشعارات سلسلة الإمداد وسير العمل</h2><p>حدد الإشعارات التي ترغب بتلقيها أثناء إدارة عمليات الشراء والمنافسات</p></div><span className="snot__tot">إجمالي الفئات المؤهلة: <b>5 فئات معتمدة</b></span></header>
-        <ul>
-          {NOTIFS.map((n) => (
-            <li key={n.k}>
-              <span className="snot__ic">{n.icon}</span>
+        <header>
+          <div><h2>فئات الإشعارات</h2><p>أوقف الفئة التي لا تريد أن تصلك إشعاراتها</p></div>
+          <span className="snot__tot">مفعّل: <b>{saved ? `${NOTIFS.length - muted.length} من ${NOTIFS.length}` : '—'}</b></span>
+        </header>
+        {!saved ? (
+          <p className={'users-msg' + (loadError ? ' is-err' : '')}>{loadError || 'جارٍ التحميل...'}</p>
+        ) : (
+          <ul>
+            {NOTIFS.map((n) => (
+              <li key={n.k}>
+                <span className="snot__ic">{n.icon}</span>
+                <div className="snot__body">
+                  <div className="snot__t"><strong>{n.t}</strong><span><i />{n.who}</span></div>
+                  <p>{n.d}</p>
+                </div>
+                <div className="snot__sw">
+                  <b>{on(n.k) ? 'مفعّل' : 'موقوف'}</b>
+                  <button type="button" role="switch" aria-checked={on(n.k)} aria-label={n.t} className={'sw' + (on(n.k) ? ' is-on' : '')} onClick={() => flip(n.k)}><i /></button>
+                </div>
+              </li>
+            ))}
+            <li className="snot__always">
+              <span className="snot__ic"><ShieldIcon size={24} /></span>
               <div className="snot__body">
-                <div className="snot__t"><strong>{n.t}</strong><em>{n.tag}</em><span><i />{n.who}</span></div>
-                <p>{n.d}</p>
+                <div className="snot__t"><strong>التنبيهات الأمنية وتغيير أدوار حسابك</strong><span><i />الجميع</span></div>
+                <p>5 محاولات دخول فاشلة على حساب في جهتك (لمدراء المستخدمين)، وتحديث أدوارك وصلاحياتك.</p>
               </div>
-              <div className="snot__sw">
-                <b>{v[n.k] ? 'مفعّل' : 'غير مفعّل'}</b>
-                <button type="button" role="switch" aria-checked={v[n.k]} aria-label={n.t} className={'sw' + (v[n.k] ? ' is-on' : '')} onClick={() => setV((p) => ({ ...p, [n.k]: !p[n.k] }))}><i /></button>
-              </div>
+              <div className="snot__sw"><b>دائماً</b><span className="sw is-on is-locked" aria-hidden="true"><i /></span></div>
             </li>
-          ))}
-        </ul>
+          </ul>
+        )}
       </section>
       <div className="snot__foot">
-        <button type="button" className="btn-outline" onClick={cancel}>إلغاء</button>
-        <button type="button" className="btn-primary" onClick={save}>حفظ و إعتماد التغييرات</button>
+        <button type="button" className="btn-outline" onClick={() => nav('/settings')}>رجوع</button>
+        <button type="button" className="btn-primary" onClick={save} disabled={!dirty || saving}>{saving ? 'جارٍ الحفظ...' : 'حفظ التفضيلات'}</button>
       </div>
     </div>
   );
