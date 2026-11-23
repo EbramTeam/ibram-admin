@@ -43,8 +43,26 @@ export function Sel({ label, prefix, value, options, onChange }) {
   );
 }
 
-export function FilterCard({ placeholder, f, setF, defaults, statusOpts, secondLabel, secondOpts }) {
+// filters + "applied filters" chips. Only filters that differ from the defaults show as chips;
+// the refresh button clears the filters and reloads the data from the server.
+export function FilterCard({ placeholder, f, setF, defaults, statusOpts, secondLabel, secondOpts, onRefresh }) {
+  const [busy, setBusy] = useState(false);
   const set = (k, v) => setF((p) => ({ ...p, [k]: v }));
+  const chips = [
+    f.status !== defaults.status && { k: 'status', t: 'الحالة: ' + f.status },
+    f.second !== defaults.second && { k: 'second', t: secondLabel + ': ' + f.second },
+    f.q.trim() && { k: 'q', t: 'بحث: ' + f.q.trim() },
+  ].filter(Boolean);
+  const refresh = async () => {
+    setF(defaults);
+    if (!onRefresh) return;
+    setBusy(true);
+    try {
+      await onRefresh();
+    } finally {
+      setBusy(false);
+    }
+  };
   return (
     <section className="vfilters">
       <div className="vfilters__row">
@@ -54,15 +72,22 @@ export function FilterCard({ placeholder, f, setF, defaults, statusOpts, secondL
         </label>
         <Sel label="الحالة" prefix="الحالة: " value={f.status} options={statusOpts} onChange={(v) => set('status', v)} />
         <Sel label={secondLabel} prefix={secondLabel + ': '} value={f.second} options={secondOpts} onChange={(v) => set('second', v)} />
-        <button type="button" className="vrefresh" aria-label="تحديث" onClick={() => setF(defaults)}><RefreshIcon size={20} /></button>
+        <button type="button" className={'vrefresh' + (busy ? ' is-spin' : '')} aria-label="مسح الفلاتر وتحديث البيانات" title="مسح الفلاتر وتحديث البيانات" onClick={refresh} disabled={busy}>
+          <RefreshIcon size={20} />
+        </button>
       </div>
-      <div className="vchips">
-        <span className="vchips__label">الفلاتر المطبقة:</span>
-        <button type="button" className="vchip" onClick={() => set('status', defaults.status)}><CircleXIcon size={16} />الحالة: {f.status}</button>
-        <button type="button" className="vchip" onClick={() => set('second', defaults.second)}><CircleXIcon size={16} />{secondLabel}: {f.second}</button>
-        {f.q && <button type="button" className="vchip" onClick={() => set('q', '')}><CircleXIcon size={16} />بحث: {f.q}</button>}
-        <button type="button" className="vchips__clear" onClick={() => setF(defaults)}>مسح الكل</button>
-      </div>
+      {chips.length > 0 && (
+        <div className="vchips">
+          <span className="vchips__label">الفلاتر المطبقة:</span>
+          {chips.map((c) => (
+            <button key={c.k} type="button" className="vchip" onClick={() => set(c.k, defaults[c.k])}>
+              <CircleXIcon size={16} />
+              {c.t}
+            </button>
+          ))}
+          <button type="button" className="vchips__clear" onClick={() => setF(defaults)}>مسح الكل</button>
+        </div>
+      )}
     </section>
   );
 }

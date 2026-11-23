@@ -1853,5 +1853,6 @@
 "يحدّ النظام من محاولات الدخول المتتالية لحماية الحساب. انتظر قليلاً ثم حاول مجدداً، أو استعد كلمة المرور.": "The system limits repeated sign-in attempts to protect the account. Wait a little and try again, or reset your password.",
 "يُطلب منك عند أول دخول بكلمة مرور مؤقتة تعيين كلمة مرور جديدة خاصة بك (8 أحرف على الأقل) قبل استخدام النظام.": "When you first sign in with a temporary password, you're asked to set your own new password (at least 8 characters) before using the system.",
 "للإبلاغ عن ثغرة أو نشاط مريب، استخدم صفحة": "To report a vulnerability or suspicious activity, use the",
-"أو تواصل مع مسؤول النظام في جهتك.": "page or contact your organization's system administrator."
+"أو تواصل مع مسؤول النظام في جهتك.": "page or contact your organization's system administrator.",
+"مسح الفلاتر وتحديث البيانات": "Clear filters and refresh data"
 }

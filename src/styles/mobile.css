@@ -1349,3 +1349,9 @@
     font-size: 12px;
   }
 }
+
+/* refresh button feedback while data reloads */
+.vrefresh:hover { background: #d6eeff; }
+.vrefresh:disabled { cursor: progress; }
+.vrefresh.is-spin svg { animation: vspin 0.8s linear infinite; }
+@keyframes vspin { to { transform: rotate(360deg); } }

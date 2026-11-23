@@ -8,6 +8,8 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [react()],
     server: {
+      // a temporary share link (cloudflared tunnel) opens the dev server from a *.trycloudflare.com address
+      allowedHosts: ['.trycloudflare.com'],
       proxy: {
         '/api': {
           target: env.API_PROXY_TARGET || 'https://ibram.apps.taqat.academy',

@@ -42,7 +42,7 @@ function ListPage({ cfg, rows, all, selected, setSelected, onAdd, filter, setFil
         <Empty {...cfg.empty} onClick={onAdd} />
       ) : (
         <>
-          <FilterCard placeholder={PH} f={filter} setF={setFilter} defaults={defaults} statusOpts={['الكل', 'نشط', 'غير نشط']} secondLabel="القسم الرئيسي" secondOpts={cfg.secondOpts} />
+          <FilterCard placeholder={PH} f={filter} setF={setFilter} defaults={defaults} statusOpts={['الكل', 'نشط', 'غير نشط']} secondLabel="القسم الرئيسي" secondOpts={cfg.secondOpts} onRefresh={reload} />
           <div className="vtable mtable">
             <table>
               <colgroup>{cfg.widths.map((w, i) => <col key={i} style={{ width: w + '%' }} />)}</colgroup>
